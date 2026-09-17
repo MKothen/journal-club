@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from sync.claims import resolve_claims
+from sync.claims import claim_key, resolve_claims
 from sync.config import AMSTERDAM
 from sync.model import Session
 
@@ -83,6 +83,31 @@ def test_a_hidden_claim_retires_its_id_and_the_survivor_keeps_its_own():
     rows[0] = claim("Ann", date(2026, 10, 7), "short", at(1, 9), hidden=True)
     second = resolve_claims(SESSIONS, rows, first.assigned)
     assert [s.page_id for s in second.slots] == ["2026-10-07-b"]
+
+
+def test_a_third_short_claim_is_rejected_and_burns_no_id():
+    rows = [
+        claim("Ann", date(2026, 10, 7), "short", at(1, 9)),
+        claim("Bo", date(2026, 10, 7), "short", at(2, 9)),
+        claim("Cy", date(2026, 10, 7), "short", at(3, 9)),
+    ]
+    result = resolve_claims(SESSIONS, rows, {})
+    assert [s.page_id for s in result.slots] == ["2026-10-07-a", "2026-10-07-b"]
+    assert result.rejections[0].name == "Cy"
+    assert result.rejections[0].reason == "taken"
+    assert claim_key(rows[2]) not in result.assigned
+
+
+def test_a_full_claim_after_a_short_claim_on_the_same_session_is_rejected():
+    rows = [
+        claim("Ann", date(2026, 10, 7), "short", at(1, 9)),
+        claim("Bo", date(2026, 10, 7), "full", at(2, 9)),
+    ]
+    result = resolve_claims(SESSIONS, rows, {})
+    assert [s.presenter for s in result.slots] == ["Ann"]
+    assert [s.page_id for s in result.slots] == ["2026-10-07-a"]
+    assert result.rejections[0].name == "Bo"
+    assert result.rejections[0].reason == "taken"
 
 
 def test_a_released_long_claim_frees_capacity_but_not_its_id():
