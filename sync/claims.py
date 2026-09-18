@@ -1,9 +1,10 @@
 """Resolve claim rows into slots. Page ids are assigned once and never reused,
 and a claim is refused at most once.
 
-Three records reach this module from earlier runs, and together they make
-resolution depend only on the sheet and on what earlier runs decided, never on
-the clock, so sync, build and announce always agree:
+Two records reach this module from earlier runs, and one from the schedule.
+No claim is ever compared with the current time: a claim's fate depends on
+the sheet, the schedule and what earlier runs decided, so build and announce,
+which read what sync recorded, agree with sync:
 
 - `assigned` maps the key of every claim ever placed to its page id. Those ids
   are retired forever, even once the claim row is gone (released or hidden),
@@ -21,8 +22,8 @@ the clock, so sync, build and announce always agree:
 Resolution runs in two passes. Claims placed in an earlier run go first and
 keep their ids and their places, on any regular session, a cancelled one
 included, so an older row that only now becomes readable (fixed after a
-problem report, or unhidden before it was ever placed) can never bump a claim
-that was already confirmed. New claims then fill what is left, earliest
+problem report, or unhidden when it had never been placed) can never bump a
+claim that was already confirmed. New claims then fill what is left, earliest
 first. Capacity counts only the claims placed in this run: a session holds
 either one long slot (fmt "full" or "help") or up to two short slots.
 """

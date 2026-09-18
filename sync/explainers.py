@@ -265,7 +265,7 @@ def http_get_text(
     every hop, manual redirect following with a hop cap, the Google sign-in
     final-host check, the refusal of a compressed body, and the time budget.
     Returns decoded text of a 2xx response; never reads a redirect body, and
-    never decompresses one.
+    never decompresses any body.
 
     The whole download gets FETCH_BUDGET_SECONDS of wall-clock time across
     every hop and chunk. `clock` is checked before every hop and on every
