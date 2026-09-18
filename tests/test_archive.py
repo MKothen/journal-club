@@ -90,3 +90,15 @@ def test_the_schedule_and_sync_state_are_written(tmp_path):
                            "title": None, "guest": None, "length_minutes": 60}
     assert read(tmp_path, "sync_state.json") == {"last_run": NOW.isoformat(),
                                                    "keepalive_month": "2026-10"}
+
+
+# -- the keep-alive commit --------------------------------------------------------
+
+def test_sync_state_records_the_month_so_a_quiet_summer_still_commits(tmp_path):
+    # write_data already writes keepalive_month; this pins the behaviour so a
+    # month change alone guarantees at least one commit, which keeps GitHub
+    # from disabling the schedule after 60 quiet days.
+    now = datetime(2026, 7, 15, 9, 0, tzinfo=AMSTERDAM)
+    parsed = data()
+    write_data(tmp_path, build_pages(parsed, {}, now), parsed, now)
+    assert read(tmp_path, "sync_state.json")["keepalive_month"] == "2026-07"
