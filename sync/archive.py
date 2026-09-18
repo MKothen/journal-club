@@ -51,5 +51,10 @@ def write_data(root: Path, built, data, now: datetime) -> None:
     write_json(root / "data" / "schedule.json", built.sessions)
     write_json(root / "data" / "submissions.json",
                archivable(publishable(data.contributions), now))
+    # No last_run here: it changed on every run and so forced a commit on
+    # every run, about 8 a day. keepalive_month is all the keep-alive needs
+    # -- it still forces one commit on the first run of a new month, which
+    # is enough to keep GitHub from disabling the schedule after 60 quiet
+    # days, and a run that changes nothing else now commits nothing.
     write_json(root / "data" / "sync_state.json",
-               {"last_run": now.isoformat(), "keepalive_month": now.strftime("%Y-%m")})
+               {"keepalive_month": now.strftime("%Y-%m")})
