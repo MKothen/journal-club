@@ -528,3 +528,19 @@ def test_a_settings_session_minute_of_integer_zero_is_read_as_zero():
 def test_a_blank_settings_session_minute_is_still_a_fatal_value_error():
     with pytest.raises(ValueError, match="session_minute"):
         read_all(reader(Settings=with_settings(session_minute="")))
+
+
+# -- entry_paper is optional: without it the site shows no "I'd come" button ---
+
+def test_entry_paper_is_read_when_the_settings_tab_has_it():
+    parsed = read_all(reader(Settings=SETTINGS_TAB + [["entry_paper", " entry.3 "]]))
+    assert parsed.settings.entry_paper == "entry.3"
+    assert not any("entry_paper" in p for p in parsed.problems)
+
+
+@pytest.mark.parametrize("tab", [SETTINGS_TAB, SETTINGS_TAB + [["entry_paper", ""]]],
+                         ids=["absent", "blank"])
+def test_entry_paper_defaults_to_empty_and_is_not_a_problem(tab):
+    parsed = read_all(reader(Settings=tab))
+    assert parsed.settings.entry_paper == ""
+    assert not any("entry_paper" in p for p in parsed.problems)

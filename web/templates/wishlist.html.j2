@@ -7,7 +7,7 @@
 {% block content %}
 <header class="page-head">
   <h1>Wishlist</h1>
-  <p class="lede">Papers people would like the club to read. Take one to present, or tell us you would come if someone did.</p>
+  <p class="lede">Papers people would like the club to read. Take one to present{% if settings.entry_paper %}, or say you would come if someone did{% endif %}.</p>
   <p><a class="button" href="{{ form_link(settings, 'wishlist') }}">Suggest a paper</a></p>
 </header>
 {% if suggestions %}
@@ -22,7 +22,9 @@
     <blockquote>{{ item.entry.why|paragraphs }}</blockquote>
 {% endif %}
     <p class="signature">Suggested by {{ item.entry.name }}{% if item.interest == 1 %}. One person would come{% elif item.interest > 1 %}. {{ item.interest }} people would come{% endif %}.</p>
-    <p><a class="quiet" href="{{ form_link(settings, 'interest') }}">I'd come</a></p>
+{% if settings.entry_paper and item.names %}
+    <p><a class="quiet" href="{{ form_link(settings, 'interest', paper=item.names) }}">I'd come</a></p>
+{% endif %}
   </li>
 {% endfor %}
 </ul>

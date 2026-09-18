@@ -483,6 +483,7 @@ def _settings(rows: list[dict]) -> tuple[Settings, list[str]]:
         form_url=_str(require("form_url")),
         entry_action=_str(require("entry_action")),
         entry_page=_str(require("entry_page")),
+        entry_paper=_str(values.get("entry_paper") or "").strip(),
     )
     return settings, problems
 

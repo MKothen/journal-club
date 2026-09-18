@@ -56,15 +56,20 @@ FORMAT_NOTES = {
 
 # -- links -------------------------------------------------------------------------
 
-def form_link(settings: Settings, action: str, page_id: str | None = None) -> str:
-    """A link that opens the form with the action, and the page if given,
-    already chosen. Google Forms selects a multiple-choice option only by its
-    exact visible text, so the link carries the action's label, not its code."""
+def form_link(settings: Settings, action: str, page_id: str | None = None,
+              paper: str | None = None) -> str:
+    """A link that opens the form with the action, and the page and paper if
+    given, already filled in. Google Forms selects a multiple-choice option
+    only by its exact visible text, so the link carries the action's label,
+    not its code. The paper is filled in only when the form has a paper
+    question, settings.entry_paper."""
     joiner = "&" if "?" in settings.form_url else "?"
     link = (f"{settings.form_url}{joiner}usp=pp_url"
             f"&{settings.entry_action}={quote(ACTION_LABELS[action])}")
     if page_id:
         link += f"&{settings.entry_page}={quote(page_id)}"
+    if paper and settings.entry_paper:
+        link += f"&{settings.entry_paper}={quote(paper)}"
     return link
 
 
@@ -153,6 +158,13 @@ class Suggestion:
     paper: Paper | None
     title: str
     interest: int
+
+    @property
+    def names(self) -> str | None:
+        """What an "I'd come" answer records to name this paper: its DOI, or
+        else its link. The sheet counts interest by exactly these, and ignores
+        interest that has neither."""
+        return self.entry.doi or self.entry.paper_link
 
 
 def _paper(doi: str | None, title: str | None, link: str | None, papers: dict) -> Paper | None:

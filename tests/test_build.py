@@ -67,6 +67,48 @@ def test_a_form_link_without_a_page_carries_only_the_action():
     assert "entry.2" not in link
 
 
+def test_a_form_link_names_its_paper_when_the_form_has_a_paper_question():
+    settings = replace(data().settings, entry_paper="entry.3")
+    link = form_link(settings, "interest", paper="10.1038/nn.2479")
+    assert link.endswith("entry.3=" + quote("10.1038/nn.2479"))
+
+
+def test_a_form_link_names_no_paper_when_the_form_has_no_paper_question():
+    link = form_link(data().settings, "interest", paper="10.1038/nn.2479")
+    assert "10.1038" not in link
+
+
+# -- the wishlist's "I'd come" (pre-review fix C1) ------------------------------------
+
+def wishlist(tmp_path, entry_paper: str) -> str:
+    parsed = data()
+    parsed.settings = replace(parsed.settings, entry_paper=entry_paper)
+    when = datetime(2026, 10, 1, 9, 0, tzinfo=AMSTERDAM)
+    parsed.wishlist += [
+        WishlistEntry("10.1038/nn.2479", "Replay in cortex", "https://www.nature.com/articles/nn.2479",
+                      "Lotte", "", when),
+        WishlistEntry(None, "A preprint", "https://example.org/preprint", "Max", "", when),
+        WishlistEntry(None, "A paper named only by its title", None, "Jonas", "", when),
+    ]
+    return read(rendered(tmp_path, parsed), "wishlist")
+
+
+def test_id_come_prefills_the_papers_doi_or_else_its_link(tmp_path):
+    html = wishlist(tmp_path, "entry.3")
+    assert "entry.3=" + quote("10.1038/nn.2479") in html
+    assert "entry.3=" + quote("https://www.nature.com/articles/nn.2479") not in html
+    assert "entry.3=" + quote("https://example.org/preprint") in html
+    # The sheet ignores interest that names neither a DOI nor a link, so a
+    # suggestion known only by its title gets no button.
+    assert html.count(">I'd come</a>") == 2
+
+
+def test_without_a_paper_question_the_wishlist_has_no_id_come_button(tmp_path):
+    html = wishlist(tmp_path, "")
+    assert "I'd come" not in html
+    assert "Suggest a paper" in html
+
+
 # -- explainers (R3, R5) -------------------------------------------------------------
 
 def test_the_session_page_runs_an_explainer_only_in_a_sandboxed_frame(tmp_path):

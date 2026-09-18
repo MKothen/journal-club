@@ -46,6 +46,9 @@ class Settings:
     form_url: str
     entry_action: str
     entry_page: str
+    # The form's paper question for "I'd come". Optional: without it the site
+    # shows no "I'd come" button, since the form could not say which paper.
+    entry_paper: str = ""
 
 
 def session_start(day: date, settings: Settings) -> datetime:
