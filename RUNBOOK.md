@@ -57,12 +57,13 @@ GitHub often starts scheduled runs late, sometimes by an hour or more, and occas
 2. Places claims, earliest first, and gives each new page its address. A claim made once its session has started is not placed.
 3. Looks up paper details for new DOIs.
 4. Copies approved explainers whose link is new.
-5. Posts notices to Mattermost: a claim that was not placed, contributions waiting for approval, new problems in the sheet, and explainers that could not be copied.
+5. Posts notices to Mattermost: a claim that was not placed, contributions waiting for approval, new problems in the sheet, and explainers that could not be copied. A notice that cannot be posted does not stop the steps below.
 6. Commits the archive to the repository.
 7. Builds the site and publishes it.
 8. Posts any announcement that is due. This step runs even when an earlier step failed.
-9. Pings the monitor. This also happens on every run, failed or not.
-10. If any step failed, posts "Journal club sync failed" to Mattermost, with a link to the run.
+9. If a notice from step 5 could not be posted, marks the run as failed, so the failure is reported like any other.
+10. Pings the monitor. This also happens on every run, failed or not.
+11. If any step failed, posts "Journal club sync failed" to Mattermost, with a link to the run.
 
 ### Announcements
 
@@ -281,6 +282,7 @@ Mattermost posts "Journal club sync failed", with a link to the run. Open the li
 | Sync or Build | The sheet's Settings tab | Fix it, then run the workflow again |
 | Commit the archive | Someone pushed at the same moment | Run the workflow again |
 | Announce | Mattermost could not be reached | Check for a `sending` entry, above |
+| Fail if a notice was not posted | Mattermost refused a notice during Sync. The site was still built. | Check for a `sending` entry, above |
 
 The monitor ping never fails a run.
 

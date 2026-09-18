@@ -368,6 +368,30 @@ def test_a_failed_post_from_sync_is_contained(tmp_path):
     assert (tmp_path / "data" / "slots.json").exists()
 
 
+# -- final review D8: a notice that was not posted fails the run, after the build ---
+
+def test_a_failed_notice_leaves_sync_green_and_tells_the_workflow(tmp_path, monkeypatch, capsys):
+    output = tmp_path / "github_output"
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output))
+    outside = Outside(claim("2026-09-20 09:00:00", "2026-10-28", "Ann"),
+                      claim("2026-09-22 09:00:00", "2026-10-28", "Cy"),
+                      post_fails=True)
+    assert cmd_sync(tmp_path, outside.effects()) == 0
+    assert output.read_text(encoding="utf-8") == "notices_failed=1" + chr(10)
+    assert ("::error::1 notice(s) could not be posted to Mattermost; see the sending "
+            "entries in data/announcements.json") in capsys.readouterr().out
+
+
+def test_a_sync_whose_notices_all_went_out_tells_the_workflow_nothing(tmp_path, monkeypatch):
+    output = tmp_path / "github_output"
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output))
+    outside = Outside(claim("2026-09-20 09:00:00", "2026-10-28", "Ann"),
+                      claim("2026-09-22 09:00:00", "2026-10-28", "Cy"))
+    assert cmd_sync(tmp_path, outside.effects()) == 0
+    assert len(outside.posts) == 1
+    assert not output.exists()
+
+
 def test_sync_posts_nothing_and_fails_when_the_log_cannot_be_persisted(tmp_path):
     outside = Outside(claim("2026-09-20 09:00:00", "2026-10-28", "Ann"),
                       claim("2026-09-22 09:00:00", "2026-10-28", "Cy"),

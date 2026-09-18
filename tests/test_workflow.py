@@ -126,3 +126,17 @@ def test_no_secret_is_interpolated_directly_into_a_run_script():
     # ${{ }} is substituted before the shell parses it.
     for s in STEPS:
         assert "${{ secrets." not in s.get("run", "")
+
+
+def test_a_notice_that_was_not_posted_fails_the_run_after_announce():
+    # Final review D8: Sync stays green when only a post failed, so the site
+    # is still committed and built, and this step turns the run red after
+    # the announcements, so Report failure and the monitor both hear of it.
+    assert step("Sync")["id"] == "sync"
+    check = step("Fail if a notice was not posted")
+    assert check["if"].startswith("always()")
+    assert "steps.sync.outputs.notices_failed" in check["if"]
+    assert check["run"].strip() == "exit 1"
+    assert index("Announce") < index("Fail if a notice was not posted")
+    assert index("Fail if a notice was not posted") < index("Ping the monitor")
+    assert index("Fail if a notice was not posted") < index("Report failure")

@@ -177,15 +177,31 @@ def cmd_sync(root: Path = ROOT, fx: Effects | None = None) -> int:
 
     log_path = root / LOG
     log = read_json(log_path, {})
-    # A failed post only prints, so a Mattermost outage never costs the site
-    # its build. A failed persist does fail the run: git itself is broken,
-    # and the workflow's archive commit right after this step would fail too.
+    # A failed post does not fail this step, so a Mattermost outage never
+    # costs the site its archive commit and its build. It is handed to the
+    # workflow instead, whose "Fail if a notice was not posted" step turns
+    # the run red after the announcements. A failed persist does fail the
+    # step: git itself is broken, and the archive commit would fail too.
     try:
-        deliver(_notices(built, data, failures, log, fx.now), log, log_path, fx.persist, fx.send)
+        failed = deliver(_notices(built, data, failures, log, fx.now),
+                         log, log_path, fx.persist, fx.send)
     except PersistFailed as error:
         print(error)
         return 1
+    if failed:
+        _report_failed_notices(failed)
     return 0
+
+
+def _report_failed_notices(failed: int) -> None:
+    """An error annotation on the run, and notices_failed=N as a step output
+    when the workflow provides a place for one."""
+    print(f"::error::{failed} notice(s) could not be posted to Mattermost; "
+          "see the sending entries in data/announcements.json")
+    output = os.environ.get("GITHUB_OUTPUT")
+    if output:
+        with open(output, "a", encoding="utf-8", newline="\n") as handle:
+            handle.write(f"notices_failed={failed}\n")
 
 
 def cmd_build(root: Path = ROOT, fx: Effects | None = None,

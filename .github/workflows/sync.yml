@@ -32,6 +32,7 @@ jobs:
       - name: Install
         run: pip install -e .
       - name: Sync
+        id: sync
         timeout-minutes: 10
         env:
           SHEET_ID: ${{ secrets.SHEET_ID }}
@@ -62,6 +63,11 @@ jobs:
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           MATTERMOST_WEBHOOK_URL: ${{ secrets.MATTERMOST_WEBHOOK_URL }}
         run: python -m sync.cli announce
+      # Sync stays green when only a notice failed to post, so the archive is
+      # committed and the site built; the run turns red here instead.
+      - name: Fail if a notice was not posted
+        if: always() && steps.sync.outputs.notices_failed != '' && steps.sync.outputs.notices_failed != '0'
+        run: exit 1
       - name: Ping the monitor
         if: always()
         env:
