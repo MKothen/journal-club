@@ -201,6 +201,19 @@ def test_the_front_page_gallery_shows_held_pages_only(tmp_path):
     assert UNRECORDED not in gallery
 
 
+def test_the_gallery_does_not_mark_which_pages_have_an_explainer(tmp_path):
+    site = rendered(tmp_path, with_explainer(tmp_path))
+    assert (site / "sessions" / PAGE / "explainer.txt").exists()
+    for html in (read(site), read(site, "library")):
+        assert "explainer" not in html.lower()
+
+
+def test_no_session_page_carries_a_start_here_block(tmp_path):
+    for name, html in all_pages(rendered(tmp_path)).items():
+        if name.startswith("sessions"):
+            assert "start here" not in html.lower() and "start-here" not in html.lower(), name
+
+
 def test_every_page_gets_a_takeaway_qr_code(tmp_path):
     site = rendered(tmp_path)
     assert (site / "sessions" / PAGE / "takeaway-qr.svg").exists()
@@ -261,6 +274,8 @@ def test_the_site_loads_nothing_from_elsewhere(tmp_path):
         for url in re.findall(r'<(?:script|link|img|iframe)\b[^>]*\b(?:src|href)="([^"]*)"', html):
             assert not re.match(r"^(https?:)?//", url), (name, url)
         assert "<script src" not in html, name
+        scripts = re.findall(r"<script\b.*?</script>", html, re.S)
+        assert all('fetch("explainer.txt")' in script for script in scripts), name
     css = (site / "static" / "style.css").read_text(encoding="utf-8")
     assert "@import" not in css and "url(" not in css
 
