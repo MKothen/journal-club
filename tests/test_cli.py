@@ -277,6 +277,20 @@ def test_a_rejected_claim_is_posted_once_and_names_the_next_open_session(tmp_pat
     assert read(tmp_path, "announcements.json")[f"reject:{key}"]["state"] == "sent"
 
 
+def test_a_rejection_links_the_next_open_sessions_page_when_its_date_id_is_retired(tmp_path):
+    ann = claim("2026-09-20 09:00:00", "2026-10-28", "Ann")
+    outside = Outside(ann)
+    cmd_sync(tmp_path, outside.effects())
+
+    # Ann's claim is hidden, so 28 October is open again under a new page id.
+    outside.rows[0] = ann[:11] + ["yes"] + ann[12:]
+    outside.rows += [claim("2026-09-21 09:00:00", "2026-11-11", "Bo"),
+                     claim("2026-09-22 09:00:00", "2026-11-11", "Cy")]
+    cmd_sync(tmp_path, outside.effects())
+    assert len(outside.posts) == 1 and outside.posts[0].startswith("Cy")
+    assert "https://example.github.io/journal-club/sessions/2026-10-28-2/" in outside.posts[0]
+
+
 def test_the_approval_nag_posts_once_per_change_in_the_pending_set(tmp_path):
     outside = Outside(part("2026-10-15 09:00:00", "2026-10-14", "Ann", "synthesis",
                            text="We were not convinced", status=""))

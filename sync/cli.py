@@ -282,13 +282,16 @@ def _rejection(rejection, built: Built, settings: Settings, now: datetime) -> Me
 
 
 def _next_open(built: Built, settings: Settings, now: datetime) -> str:
+    """Links the unclaimed session's own page, whose id is not always the
+    bare date: a released claim retires that one."""
     claimed = {slot.day for slot in built.slots}
+    unclaimed = {page.session.day: page.page_id for page in built.pages.values() if page.slot is None}
     for session in built.sessions:
         if (session.kind == "regular" and session.status == "scheduled"
                 and session.day not in claimed
                 and session_start(session.day, settings) > now):
             return (f"The next open session is {_day(session.day)}: "
-                    f"{settings.site_base_url}/sessions/{session.day.isoformat()}/")
+                    f"{settings.site_base_url}/sessions/{unclaimed[session.day]}/")
     return "There is no open session in the schedule yet."
 
 

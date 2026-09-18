@@ -51,7 +51,8 @@
 {% endif %}
 {% elif view.kind == "chat" and session.status == "scheduled" %}
     <p class="lede">Bring anything you read, no slides. Or claim this Wednesday, and bring a paper you want help with, or one you want to talk about.</p>
-    <p><a class="button" href="{{ form_link(settings, 'claim', page.page_id) }}">Claim this</a></p>
+{# The form's Session question takes a date. A page id is not always one. #}
+    <p><a class="button" href="{{ form_link(settings, 'claim', session.day.isoformat()) }}">Claim this</a></p>
 {% elif view.kind == "chat" %}
     <p class="lede">Anyone brings something they read, and nobody needs slides.</p>
 {% elif view.kind == "guest" %}

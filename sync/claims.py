@@ -108,7 +108,7 @@ def resolve_claims(sessions: list[Session], rows: list[dict], assigned: dict[str
         elif not _fits(row["fmt"], live_formats.get(row["day"], [])):
             reason = "taken"
         else:
-            page_id = _next_id(row["day"].isoformat(), row["fmt"], taken_ids)
+            page_id = next_id(row["day"].isoformat(), row["fmt"], taken_ids)
             result.assigned[key] = page_id
             taken_ids.add(page_id)
             place(row, page_id)
@@ -131,7 +131,10 @@ def _fits(fmt: str, existing: list[str]) -> bool:
     return len(existing) < 2
 
 
-def _next_id(day: str, fmt: str, taken_ids: set[str]) -> str:
+def next_id(day: str, fmt: str, taken_ids: set[str]) -> str:
+    """The first id for `day` in the format's sequence that is not taken.
+    sync.assemble uses the long sequence for an unclaimed session's page too,
+    so that page never takes an id a released claim retired."""
     if fmt in LONG_FORMATS:
         candidates = itertools.chain([day], (f"{day}-{n}" for n in itertools.count(2)))
     else:

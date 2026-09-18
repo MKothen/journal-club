@@ -182,3 +182,21 @@ def test_a_claim_refused_beyond_the_horizon_stays_refused_once_the_date_is_in_ra
     assert "2027-05-12" in {s.day.isoformat() for s in second.sessions}
     assert second.slots == [] and second.rejections == []
     assert second.pages["2027-05-12"].slot is None
+
+
+# -- final review D2: an unclaimed session's page never takes a retired id ----------
+
+def test_a_released_claims_id_is_never_reused_by_the_unclaimed_sessions_page():
+    ann = row("2026-09-20 09:00:00", "claim", "2026-10-14", "Ann", fmt="full")
+    takeaway = row("2026-10-14 12:10:00", "takeaway", "2026-10-14", "Ann", takeaway="My notes")
+    first = build_pages(read_all(reader(Responses=[HEADER, ann, takeaway])), {}, NOW)
+    assert first.pages["2026-10-14"].slot.presenter == "Ann"
+
+    # Ann's claim is hidden, which releases the session and retires its id.
+    hidden = ann[:11] + ["yes"] + ann[12:]
+    second = build_pages(read_all(reader(Responses=[HEADER, hidden, takeaway])),
+                         first.assigned, NOW, first.refused)
+    assert "2026-10-14" not in second.pages
+    page = second.pages["2026-10-14-2"]
+    assert page.slot is None and page.takeaways == []
+    assert "Takeaway from Ann names page 2026-10-14, which does not exist" in second.problems

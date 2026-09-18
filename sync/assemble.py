@@ -3,6 +3,10 @@ with evidence are marked held. A takeaway is evidence only once its session
 has started: an early one still attaches to its page, but the session stays
 scheduled, so it is never both upcoming and in the library.
 
+An unclaimed session's page takes the first id in the long sequence (the
+date, then date-2, ...) that no claim has ever held. A released claim's id is
+retired, so the open chat that replaces it never inherits its takeaways.
+
 Names are aliased here for display only, after resolve_claims has fixed every
 page id. The claim key embeds the claimant's name as submitted, so aliasing
 before that point would move a page the moment someone added an alias.
@@ -11,7 +15,7 @@ before that point would move a page the moment someone added an alias.
 from dataclasses import dataclass, field, replace
 from datetime import datetime
 
-from sync.claims import Rejection, resolve_claims
+from sync.claims import Rejection, next_id, resolve_claims
 from sync.config import session_start
 from sync.contributions import attach, pending
 from sync.model import Contribution, Page, Session, Slot
@@ -66,9 +70,10 @@ def build_pages(data: SheetData, assigned: dict[str, str], now: datetime,
     for slot in built.slots:
         slots_by_day.setdefault(slot.day, []).append(slot)
 
+    retired = set(built.assigned.values())
     for session in sessions:
         for slot in slots_by_day.get(session.day, []) or [None]:
-            page_id = slot.page_id if slot else session.day.isoformat()
+            page_id = slot.page_id if slot else next_id(session.day.isoformat(), "full", retired)
             built.pages[page_id] = Page(page_id=page_id, session=session, slot=slot)
 
     attach(built.pages, data.contributions)

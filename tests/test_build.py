@@ -325,6 +325,17 @@ def test_no_session_page_carries_a_start_here_block(tmp_path):
             assert "start here" not in html.lower() and "start-here" not in html.lower(), name
 
 
+def test_a_chat_page_under_a_retired_date_id_prefills_the_date_in_its_claim_link(tmp_path):
+    # A released claim retired FREE's bare date, so its open paper chat is
+    # FREE-2. The form's Session question takes a date, never a page id.
+    parsed = data()
+    render(tmp_path, build_pages(parsed, {"2026-09-01T09:00:00+02:00|Ann": FREE}, NOW), parsed)
+    html = read(tmp_path / "_site", "sessions", f"{FREE}-2")
+    claim = re.search(r'<a class="button" href="([^"]*)">Claim this</a>', html).group(1)
+    assert claim.endswith(f"entry.2={FREE}")
+    assert f"entry.2={FREE}-2" not in claim
+
+
 def test_every_page_gets_a_takeaway_qr_code(tmp_path):
     site = rendered(tmp_path)
     assert (site / "sessions" / PAGE / "takeaway-qr.svg").exists()
