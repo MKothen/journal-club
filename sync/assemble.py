@@ -1,0 +1,82 @@
+"""Turn sheet data into pages. A page exists for every session; only sessions
+with evidence are marked held.
+
+Names are aliased here for display only, after resolve_claims has fixed every
+page id. The claim key embeds the claimant's name as submitted, so aliasing
+before that point would move a page the moment someone added an alias.
+"""
+
+from dataclasses import dataclass, field, replace
+from datetime import datetime
+
+from sync.claims import Rejection, resolve_claims
+from sync.contributions import attach, pending
+from sync.model import Contribution, Page, Session, Slot
+from sync.schedule import generate_sessions
+from sync.sheet import SheetData
+
+# How a contribution is named in a problem report.
+PART_NAMES = {
+    "takeaway": "Takeaway",
+    "synthesis": "Discussion synthesis",
+    "connections": "Note on what it means for our work",
+    "slides": "Slides link",
+    "explainer": "Explainer link",
+    "next": "Follow-up",
+    "reply": "Author reply",
+}
+
+
+@dataclass
+class Built:
+    pages: dict[str, Page] = field(default_factory=dict)
+    sessions: list[Session] = field(default_factory=list)
+    slots: list[Slot] = field(default_factory=list)
+    rejections: list[Rejection] = field(default_factory=list)
+    assigned: dict[str, str] = field(default_factory=dict)
+    pending: list[Contribution] = field(default_factory=list)
+    problems: list[str] = field(default_factory=list)
+
+
+def build_pages(data: SheetData, assigned: dict[str, str], now: datetime) -> Built:
+    """`assigned` is the whole claim-key -> page-id map from data/slots.json.
+    The returned `built.assigned` is that map plus any new ids, and must be
+    persisted whole: see write_data."""
+    sessions = generate_sessions(
+        data.settings, data.skipped, data.open_sessions, data.status, now.date()
+    )
+    claims = resolve_claims(sessions, data.claims, assigned)
+    built = Built(
+        sessions=sessions,
+        slots=[replace(s, presenter=_display(s.presenter, data.aliases)) for s in claims.slots],
+        rejections=[replace(r, name=_display(r.name, data.aliases)) for r in claims.rejections],
+        assigned=claims.assigned,
+        pending=pending(data.contributions),
+    )
+
+    slots_by_day: dict = {}
+    for slot in built.slots:
+        slots_by_day.setdefault(slot.day, []).append(slot)
+
+    for session in sessions:
+        for slot in slots_by_day.get(session.day, []) or [None]:
+            page_id = slot.page_id if slot else session.day.isoformat()
+            built.pages[page_id] = Page(page_id=page_id, session=session, slot=slot)
+
+    attach(built.pages, data.contributions)
+    built.problems = [
+        f"{PART_NAMES[row.part]} from {row.name} names page {row.page_id}, which does not exist"
+        for row in sorted(data.contributions, key=lambda r: r.submitted_at)
+        if row.page_id not in built.pages
+    ]
+
+    for page in built.pages.values():
+        if page.session.status in ("cancelled", "held"):
+            continue
+        if page.takeaways:
+            page.session = replace(page.session, status="held")
+    return built
+
+
+def _display(name: str, aliases: dict[str, str]) -> str:
+    return aliases.get(name.lower(), name)
