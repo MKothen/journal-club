@@ -115,7 +115,7 @@ Several titles, such as `Name`, `DOI`, `Text` and `Link`, repeat across sections
 | `Session status` | `date`, `status` | Max or the backup host |
 | `Aliases` | `alias`, `display name` | Anyone |
 
-Only `Settings` must be filled in. Two mistakes stop every run, announcements included. One is a missing or broken `Settings` tab. The other is an `Aliases` tab whose `alias` or `display name` header is misspelt, and anyone may edit that tab. A missing `Responses` tab is reported in Mattermost. Any other tab may stay empty, but a misnamed one also reads as empty, with no warning.
+Only `Settings` must be filled in, and only a missing or broken `Settings` tab stops every run, announcements included. An `Aliases` tab whose `alias` or `display name` header is misspelt is reported in Mattermost, and names are shown as typed until the header is fixed. A missing `Responses` tab is reported too. Any other tab may stay empty, but a misnamed one also reads as empty, with no warning.
 
 **The Settings tab**, one key per row. Every key is required except `entry_paper`.
 

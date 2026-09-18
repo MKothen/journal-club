@@ -180,7 +180,7 @@ A claim row you fix counts from its own Timestamp, but it never takes a session 
 - Dates in **Open sessions**, **Skipped weeks** and **Session status** must be regular session dates, every other Wednesday from the first session. Any other date is ignored, with no warning.
 - To show two spellings of a name as one person, add a row to **Aliases**: the variant under **alias**, and the name to show under **display name**.
 
-If every run fails, check the **Settings** tab and the **Aliases** header row first. A missing or broken Settings value stops the whole run, announcements included. So does an Aliases tab whose `alias` or `display name` header is misspelt. The run's log names the tab, and the key or column.
+If every run fails, check the **Settings** tab first. A missing or broken Settings value stops the whole run, announcements included, and the run's log names the key or column. An **Aliases** tab without its `alias` and `display name` headers does not stop a run: Mattermost reports it, and names are shown as typed until the headers are fixed.
 
 ### Record a message posted by hand
 
@@ -278,7 +278,7 @@ Mattermost posts "Journal club sync failed", with a link to the run. Open the li
 
 | Failed step | Usual cause | What to do |
 |---|---|---|
-| Sync or Build | The sheet, most often the Settings tab or the Aliases header row | Fix it, then run the workflow again |
+| Sync or Build | The sheet's Settings tab | Fix it, then run the workflow again |
 | Commit the archive | Someone pushed at the same moment | Run the workflow again |
 | Announce | Mattermost could not be reached | Check for a `sending` entry, above |
 

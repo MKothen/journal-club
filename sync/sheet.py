@@ -9,7 +9,10 @@ mistyped cell must never crash the unattended sync job or silently publish a
 wrong state. Anything that can be worked around is recorded as a
 plain-language problem on `SheetData.problems` and the offending row (or
 value) is skipped or defaulted. Only a broken Settings tab is fatal, since
-nothing downstream can run without it.
+nothing downstream can run without it. An Aliases tab without its two
+headers is a problem, and names are then shown as typed: anyone may edit
+that tab, so it must never stop a run. A tab that exists but is blank reads
+as [[]] from gspread, not [], and every tab but Settings treats it as empty.
 
 `GspreadReader` asks Sheets for UNFORMATTED_VALUE/SERIAL_NUMBER rather than
 the displayed text, so dates and timestamps arrive as Sheets serial day
@@ -97,12 +100,21 @@ def _rows(values: list[list[object]]) -> list[dict]:
     return out
 
 
+def _header(values: list[list[object]]) -> list[str]:
+    return [_str(cell).strip().lower() for cell in values[0]] if values else []
+
+
+def _blank(cells: object) -> bool:
+    """Whether every cell is empty. A number or a boolean is not empty."""
+    return all(not _str(cell).strip() for cell in cells)
+
+
 def _require_header(tab: str, values: list[list[object]], header: str) -> None:
-    """A hand-edited tab missing a whole column is a setup error, not a
+    """A Settings tab missing a whole column is a setup error, not a
     per-row problem: it can't be worked around, so it raises a clear
     ValueError naming the tab and the column, instead of the KeyError a
     later `row[header]` would otherwise raise."""
-    if not values or header not in [_str(cell).strip().lower() for cell in values[0]]:
+    if header not in _header(values):
         raise ValueError(f"{tab} is missing the required '{header}' column")
 
 
@@ -258,11 +270,17 @@ def read_all(reader: TabReader) -> SheetData:
     settings, problems = _settings(_rows(settings_values))
     data = SheetData(settings=settings, problems=problems)
 
+    # A blank or missing Aliases tab simply means no aliases. One with content
+    # but without both headers is a problem, and aliasing is off until fixed.
     aliases_values = reader.values("Aliases")
-    if aliases_values:
-        _require_header("Aliases", aliases_values, "alias")
-        _require_header("Aliases", aliases_values, "display name")
     aliases: dict[str, str] = {}
+    if (not _blank(cell for row in aliases_values for cell in row)
+            and not {"alias", "display name"} <= set(_header(aliases_values))):
+        data.problems.append(
+            "The Aliases tab needs 'alias' and 'display name' in row 1; names "
+            "are shown as typed until it has them."
+        )
+        aliases_values = []
     for i, row in enumerate(_rows(aliases_values), start=2):
         alias = _str(row.get("alias", "")).strip()
         if not alias:
@@ -312,7 +330,7 @@ def read_all(reader: TabReader) -> SheetData:
         data.status[day] = status
 
     responses_values = reader.values("Responses")
-    if not responses_values:
+    if _blank(_header(responses_values)):
         data.problems.append(
             "The Responses tab is missing or has no header row; no submissions "
             "were read."

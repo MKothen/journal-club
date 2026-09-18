@@ -55,14 +55,16 @@ def data():
 
 
 def reader(**tabs):
-    """A FakeReader with every required tab valid and empty, overridden by `tabs`."""
+    """A FakeReader with every required tab valid and empty, overridden by `tabs`.
+    An empty tab that exists reads as [[]], as gspread returns it; a tab
+    that does not exist reads as [], as GspreadReader returns it."""
     base = {
         "Settings": SETTINGS_TAB,
-        "Responses": [],
-        "Open sessions": [],
-        "Skipped weeks": [],
-        "Session status": [],
-        "Aliases": [],
+        "Responses": [[]],
+        "Open sessions": [[]],
+        "Skipped weeks": [[]],
+        "Session status": [[]],
+        "Aliases": [[]],
     }
     base.update(tabs)
     return FakeReader(base)
@@ -423,9 +425,50 @@ def test_a_settings_tab_missing_the_value_header_raises_a_value_error():
         read_all(reader(Settings=[["key"], ["club_name"]]))
 
 
-def test_an_aliases_tab_missing_the_display_name_header_raises_a_value_error():
-    with pytest.raises(ValueError, match="Aliases"):
-        read_all(reader(Aliases=[["alias"], ["bo"]]))
+ALIASES_PROBLEM = ("The Aliases tab needs 'alias' and 'display name' in row 1; "
+                   "names are shown as typed until it has them.")
+
+
+# Final review I3 replaces m3's ruling for Aliases: anyone may edit that tab,
+# so a broken header is a problem and aliasing is off, never a stopped run.
+
+def test_an_aliases_tab_missing_the_display_name_header_is_a_problem_not_a_crash():
+    parsed = read_all(reader(Aliases=[["alias"], ["bo"]]))
+    assert parsed.aliases == {}
+    assert ALIASES_PROBLEM in parsed.problems
+
+
+def test_an_aliases_tab_with_a_misspelt_header_leaves_names_as_typed():
+    parsed = read_all(reader(
+        Responses=[
+            ["Timestamp", "Action", "Session", "Name", "Format", "Takeaway"],
+            ["2026-09-20 09:00:00", "claim", "2026-10-14", "bo", "help", ""],
+            ["2026-09-21 09:00:00", "takeaway", "2026-10-14", "bo", "", "a takeaway"],
+        ],
+        Aliases=[["alias", "name"], ["bo", "Bo"]],
+    ))
+    assert parsed.problems == [ALIASES_PROBLEM]
+    assert parsed.aliases == {}
+    assert [c["name"] for c in parsed.claims] == ["bo"]
+    assert [c.name for c in parsed.contributions] == ["bo"]
+
+
+@pytest.mark.parametrize("tab", [[[]], [], [[""], ["", ""]]], ids=["blank", "missing", "empty cells"])
+def test_a_blank_or_missing_aliases_tab_means_no_aliases_and_no_problem(tab):
+    parsed = read_all(reader(Aliases=tab))
+    assert parsed.aliases == {}
+    assert not any("Aliases" in p for p in parsed.problems)
+
+
+def test_a_blank_responses_tab_is_reported_not_crashed():
+    parsed = read_all(reader(Responses=[[]]))
+    assert parsed.claims == [] and parsed.contributions == []
+    assert any("Responses" in p for p in parsed.problems)
+
+
+def test_a_blank_settings_tab_is_still_fatal():
+    with pytest.raises(ValueError, match="Settings"):
+        read_all(reader(Settings=[[]]))
 
 
 # m4: an alias with a blank display name is ignored and reported.
