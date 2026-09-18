@@ -1,9 +1,13 @@
 from datetime import date, datetime
 
+import pytest
+
 from sync.announce import due, mark_sending, mark_sent, claim_announcements, superseded
+from sync.assemble import build_pages
 from sync.config import AMSTERDAM
 from sync.model import Session, Slot
 from tests.test_config import settings
+from tests.test_sheet import data
 
 SESSION = Session(day=date(2026, 10, 7), kind="regular", status="scheduled")
 SLOT = Slot(page_id="2026-10-07", day=date(2026, 10, 7), presenter="Ann", fmt="help",
@@ -191,3 +195,20 @@ def test_friday_not_posted_after_monday_logged():
 def test_a_claim_on_a_cancelled_session_is_not_confirmed():
     cancelled = Session(day=date(2026, 10, 7), kind="regular", status="cancelled")
     assert claim_announcements(at(5, 9), [cancelled], [SLOT], {}, settings()) == []
+
+
+# -- final review I1: a guest session is announced as what it is ----------------------
+
+@pytest.mark.parametrize("now", [
+    datetime(2026, 10, 26, 10, 0, tzinfo=AMSTERDAM),
+    datetime(2026, 10, 28, 8, 30, tzinfo=AMSTERDAM),
+], ids=["monday", "wednesday"])
+def test_a_guest_session_is_announced_as_itself_not_as_an_open_paper_chat(now):
+    parsed = data()   # the fixture's guest talk on 28 October, 90 minutes long
+    built = build_pages(parsed, {}, now)
+    found = due(now, built.sessions, built.slots, {}, parsed.settings)
+    assert [a.day for a in found] == [date(2026, 10, 28)]
+    text = found[0].text
+    assert "Guest talk" in text and "A. Author" in text
+    assert "Open paper chat" not in text
+    assert text.endswith("Guest talk, with A. Author. Open to people outside the lab. 90 minutes.")

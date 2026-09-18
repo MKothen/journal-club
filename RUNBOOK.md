@@ -341,6 +341,12 @@ or, for an open paper chat:
 Today, [14 October 11:00, room]. Open paper chat: bring anything you read, no slides.
 ```
 
+For an open session from the **Open sessions** tab, on Monday or Wednesday morning, start with "This Wednesday" or "Today" as above. Leave out ", with [guest]" when there is no guest, and the length when it is 60 minutes:
+
+```
+This Wednesday, [28 October 11:00, room]. [Title], with [guest]. Open to people outside the lab. [90] minutes.
+```
+
 When you place a claim by hand:
 
 ```

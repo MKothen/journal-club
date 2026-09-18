@@ -64,7 +64,15 @@ def _text(kind: str, session: Session, claimed: list[Slot], settings: Settings) 
         return (f"No one has claimed {when} yet, so it is an open paper chat: "
                 f"bring anything you read, no slides. {where}. Claim it instead: "
                 f"{settings.site_base_url}/")
-    if not claimed:
+    if session.kind == "open":
+        # A guest session is never claimed, but it is not an open paper chat.
+        body = session.title or "Open session"
+        if session.guest:
+            body += f", with {session.guest}"
+        body += ". Open to people outside the lab."
+        if session.length_minutes != 60:
+            body += f" {session.length_minutes} minutes."
+    elif not claimed:
         body = "Open paper chat: bring anything you read, no slides."
     else:
         body = " ".join(
