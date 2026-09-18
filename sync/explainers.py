@@ -19,6 +19,13 @@ there only because requests' prepare_url has already normalised the URL
 before either of them sees it. That normalisation, not a shared parser, is
 what makes the checked host the dialled host, which is why a backslash or
 user info in the link text is refused outright rather than left to it.
+
+A compressed body is refused, never decoded. requests' iter_content always
+decodes gzip, deflate and br, so a few kilobytes on the wire could expand to
+gigabytes before the size cap saw one chunk. Every hop asks for identity, a
+2xx response that declares any other Content-Encoding is refused before its
+body is read, and the body is read from the raw stream with decoding off, so
+the 10 MB cap counts the bytes that actually arrived.
 """
 
 import ipaddress
@@ -54,6 +61,10 @@ BACKSLASH = chr(92)
 GOOGLE_SIGNIN_MESSAGE = (
     "explainer link shows a Google sign-in page; "
     "set file sharing to 'anyone with the link'"
+)
+COMPRESSED_MESSAGE = (
+    "explainer host sent a compressed response; "
+    "host the file somewhere that serves it plain"
 )
 GOOGLE_VIRUS_SCAN_MESSAGE = (
     "explainer link shows Google's virus-scan warning page; "
@@ -139,6 +150,16 @@ def _close(response) -> None:
         close()
 
 
+def _header(response, name: str) -> str:
+    """A response header by its lower-case name, whatever case the host sent
+    it in: a requests response holds a case-insensitive dict, a test fake
+    may hold a plain one."""
+    for key, value in (response.headers or {}).items():
+        if key.lower() == name:
+            return value or ""
+    return ""
+
+
 def _check_budget(clock, deadline: float) -> None:
     if clock() > deadline:
         raise ExplainerError(
@@ -150,7 +171,9 @@ def _read_body(response, clock, deadline: float) -> str:
     chunks = []
     total = 0
     try:
-        for chunk in response.iter_content(chunk_size=65536):
+        # The raw stream with decoding off, not iter_content, which decodes
+        # whatever the host compressed: see the module docstring.
+        for chunk in response.raw.stream(65536, decode_content=False):
             _check_budget(clock, deadline)
             if not chunk:
                 continue
@@ -192,6 +215,10 @@ def _follow_and_fetch(url: str, resolver, send, clock, deadline: float) -> str:
         prepared = requests.Request("GET", current_url).prepare()
         host = urllib3.util.parse_url(prepared.url).host
         check_host(host, resolver)
+        # A bare prepared request carries no Accept-Encoding, and http.client
+        # then sends identity itself; saying so is belt and braces for the
+        # refusal below, which is what actually keeps a compressed body out.
+        prepared.headers["Accept-Encoding"] = "identity"
 
         response = send(prepared, stream=True, timeout=60)
         status = response.status_code
@@ -212,6 +239,9 @@ def _follow_and_fetch(url: str, resolver, send, clock, deadline: float) -> str:
         if host == "accounts.google.com":
             _close(response)
             raise ExplainerError(GOOGLE_SIGNIN_MESSAGE)
+        if _header(response, "content-encoding").strip().lower() not in ("", "identity"):
+            _close(response)
+            raise ExplainerError(COMPRESSED_MESSAGE)
         return _read_body(response, clock, deadline)
 
 
@@ -233,8 +263,9 @@ def http_get_text(
     """The production fetcher. Owns every network-facing check: link-shape
     rejection (backslash, embedded user info), https-only, host safety on
     every hop, manual redirect following with a hop cap, the Google sign-in
-    final-host check, and the time budget. Returns decoded text of a 2xx
-    response; never reads a redirect body.
+    final-host check, the refusal of a compressed body, and the time budget.
+    Returns decoded text of a 2xx response; never reads a redirect body, and
+    never decompresses one.
 
     The whole download gets FETCH_BUDGET_SECONDS of wall-clock time across
     every hop and chunk. `clock` is checked before every hop and on every

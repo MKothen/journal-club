@@ -22,6 +22,23 @@ CAFE = "caf" + chr(0xE9)
 BACKSLASH = chr(92)
 
 
+class Streamed:
+    """Base for a fake 2xx response. A subclass yields its body's bytes from
+    chunks(); the fetcher reads them through raw.stream, as it reads the
+    urllib3 raw stream of a real response."""
+
+    @property
+    def raw(self):
+        test = self
+
+        class Raw:
+            def stream(self, amt=None, decode_content=None):
+                assert decode_content is False, "the body must be read undecoded"
+                yield from test.chunks()
+
+        return Raw()
+
+
 # --- The brief's original six, unchanged ---
 
 
@@ -220,11 +237,11 @@ def test_a_redirect_to_a_public_host_is_followed():
         def close(self):
             pass
 
-    class FinalResponse:
+    class FinalResponse(Streamed):
         status_code = 200
         headers = {"content-type": "text/html; charset=utf-8"}
 
-        def iter_content(self, chunk_size):
+        def chunks(self):
             yield b"<html>final</html>"
 
         def close(self):
@@ -254,11 +271,11 @@ def test_a_relative_redirect_location_is_resolved_against_the_current_url():
         def close(self):
             pass
 
-    class FinalResponse:
+    class FinalResponse(Streamed):
         status_code = 200
         headers = {"content-type": "text/html"}
 
-        def iter_content(self, chunk_size):
+        def chunks(self):
             yield b"<html>ok</html>"
 
         def close(self):
@@ -367,11 +384,11 @@ def test_exactly_three_redirects_then_success_is_allowed():
         def close(self):
             pass
 
-    class FinalResponse:
+    class FinalResponse(Streamed):
         status_code = 200
         headers = {"content-type": "text/html"}
 
-        def iter_content(self, chunk_size):
+        def chunks(self):
             yield b"<html>done</html>"
 
         def close(self):
@@ -401,11 +418,11 @@ def test_a_drive_link_redirecting_to_google_signin_is_rejected():
         def close(self):
             pass
 
-    class FinalResponse:
+    class FinalResponse(Streamed):
         status_code = 200
         headers = {"content-type": "text/html"}
 
-        def iter_content(self, chunk_size):
+        def chunks(self):
             yield b"<html>Sign in</html>"
 
         def close(self):
@@ -449,11 +466,11 @@ def test_streaming_stops_when_size_exceeded():
     chunks = ["<html>", "x" * 65536, "x" * 65536, "x" * 65536, "x" * 10_000_001]
     chunk_iter = iter(chunks)
 
-    class FinalResponse:
+    class FinalResponse(Streamed):
         status_code = 200
         headers = {"content-type": "text/html; charset=utf-8"}
 
-        def iter_content(self, chunk_size):
+        def chunks(self):
             for chunk in chunk_iter:
                 yield chunk.encode("utf-8") if isinstance(chunk, str) else chunk
 
@@ -569,12 +586,12 @@ def test_declared_charset_used_when_present_otherwise_utf8():
     # default. The body is UTF-8 bytes for CAFE ("caf" + e-acute). If the
     # UTF-8 fallback in _decode_body were removed, this would decode as
     # ISO-8859-1 and fail the assertion.
-    class FinalResponse:
+    class FinalResponse(Streamed):
         status_code = 200
         headers = {"content-type": "text/html"}
         encoding = "ISO-8859-1"
 
-        def iter_content(self, chunk_size):
+        def chunks(self):
             yield CAFE.encode("utf-8")
 
         def close(self):
@@ -591,11 +608,11 @@ def test_declared_charset_used_when_present_otherwise_utf8():
 
 
 def test_an_unknown_declared_charset_falls_back_to_utf8_instead_of_raising():
-    class FinalResponse:
+    class FinalResponse(Streamed):
         status_code = 200
         headers = {"content-type": "text/html; charset=bogus"}
 
-        def iter_content(self, chunk_size):
+        def chunks(self):
             yield CAFE.encode("utf-8")
 
         def close(self):
@@ -612,11 +629,11 @@ def test_an_unknown_declared_charset_falls_back_to_utf8_instead_of_raising():
 
 
 def test_an_invalid_utf8_byte_is_replaced_instead_of_raising():
-    class FinalResponse:
+    class FinalResponse(Streamed):
         status_code = 200
         headers = {"content-type": "text/html"}
 
-        def iter_content(self, chunk_size):
+        def chunks(self):
             yield b"<html>\xff\xfe broken</html>"
 
         def close(self):
@@ -637,11 +654,11 @@ def test_a_base64_declared_charset_falls_back_to_utf8():
     # codecs.lookup("base64") would succeed; bytes.decode("base64") itself
     # raises LookupError ("not a text encoding"). The fallback must catch
     # that, not just an unrecognised name.
-    class FinalResponse:
+    class FinalResponse(Streamed):
         status_code = 200
         headers = {"content-type": "text/html; charset=base64"}
 
-        def iter_content(self, chunk_size):
+        def chunks(self):
             yield CAFE.encode("utf-8")
 
         def close(self):
@@ -660,11 +677,11 @@ def test_a_base64_declared_charset_falls_back_to_utf8():
 def test_an_idna_declared_charset_falls_back_to_utf8():
     # bytes.decode("idna") raises UnicodeError ("unsupported error handling
     # replace"), not LookupError.
-    class FinalResponse:
+    class FinalResponse(Streamed):
         status_code = 200
         headers = {"content-type": "text/html; charset=idna"}
 
-        def iter_content(self, chunk_size):
+        def chunks(self):
             yield CAFE.encode("utf-8")
 
         def close(self):
@@ -684,11 +701,11 @@ def test_a_punycode_declared_charset_falls_back_to_utf8():
     # bytes.decode("punycode") ASCII-decodes internally before the bootstring
     # step; any non-ASCII byte (CAFE's UTF-8 form has one) raises
     # UnicodeDecodeError.
-    class FinalResponse:
+    class FinalResponse(Streamed):
         status_code = 200
         headers = {"content-type": "text/html; charset=punycode"}
 
-        def iter_content(self, chunk_size):
+        def chunks(self):
             yield CAFE.encode("utf-8")
 
         def close(self):
@@ -705,11 +722,11 @@ def test_a_punycode_declared_charset_falls_back_to_utf8():
 
 
 def test_a_nul_byte_in_the_declared_charset_falls_back_to_utf8():
-    class FinalResponse:
+    class FinalResponse(Streamed):
         status_code = 200
         headers = {"content-type": "text/html; charset=utf-8" + chr(0)}
 
-        def iter_content(self, chunk_size):
+        def chunks(self):
             yield CAFE.encode("utf-8")
 
         def close(self):
@@ -740,11 +757,11 @@ def test_a_charset_that_decodes_to_a_lone_surrogate_does_not_escape(tmp_path, ch
     # These codecs decode without error into a lone surrogate, which then
     # raises UnicodeEncodeError on the size check and on write_text. The
     # caller catches only ExplainerError, so the text must come back clean.
-    class FinalResponse:
+    class FinalResponse(Streamed):
         status_code = 200
         headers = {"content-type": "text/html; charset=" + charset}
 
-        def iter_content(self, chunk_size):
+        def chunks(self):
             yield body
 
         def close(self):
@@ -802,6 +819,10 @@ def test_a_redirect_body_is_never_read(monkeypatch):
             out, self.data = self.data, b""
             return out
 
+        def stream(self, amt=None, decode_content=None):
+            assert decode_content is False
+            yield self.read()
+
         def close(self):
             pass
 
@@ -858,14 +879,14 @@ def test_a_redirect_body_is_never_read(monkeypatch):
 def test_the_time_budget_is_checked_on_every_chunk():
     now = [1000.0]
 
-    class SlowResponse:
+    class SlowResponse(Streamed):
         status_code = 200
         headers = {"content-type": "text/html"}
 
         def __init__(self):
             self.closed = False
 
-        def iter_content(self, chunk_size):
+        def chunks(self):
             yield b"<html>"
             now[0] += 121
             yield b"late"
@@ -957,3 +978,158 @@ def test_a_wrapped_failure_keeps_its_cause_and_names_its_type():
     with pytest.raises(ExplainerError, match="MemoryError") as caught:
         http_get_text("https://start.example/x", fake_resolver, fake_send)
     assert caught.value.__cause__ is original
+
+
+# --- Final review F1: a compressed body is refused, and never decoded ---
+#
+# requests' iter_content always decodes gzip, deflate and br, so a hostile
+# host's small compressed body could expand past any cap before one chunk
+# came back. The fetcher asks for identity, refuses any other encoding before
+# reading, and reads the raw stream with decoding off.
+
+
+def public_resolver(host, port):
+    return [(2, 1, 6, "", ("8.8.8.8", 0))]
+
+
+class RawBody:
+    """A fake urllib3 raw stream that records how it was asked for bytes."""
+
+    def __init__(self, *chunks):
+        self.chunks = chunks
+        self.calls = []
+
+    def stream(self, amt=None, decode_content=None):
+        self.calls.append((amt, decode_content))
+        yield from self.chunks
+
+
+class Tripwire:
+    def stream(self, *args, **kwargs):
+        raise AssertionError("a compressed body must never be read")
+
+
+def fetch_one(response):
+    return http_get_text("https://start.example/x", public_resolver,
+                         lambda prepared, stream, timeout: response)
+
+
+@pytest.mark.parametrize("name", ["Content-Encoding", "content-encoding"])
+@pytest.mark.parametrize("value", ["gzip", " GZIP ", "br", "deflate", "gzip, identity"])
+def test_a_compressed_response_is_refused_without_reading_its_body(name, value):
+    class Compressed:
+        status_code = 200
+        headers = {"content-type": "text/html", name: value}
+        raw = Tripwire()
+        closed = False
+
+        def close(self):
+            Compressed.closed = True
+
+    with pytest.raises(ExplainerError, match="compressed"):
+        fetch_one(Compressed())
+    assert Compressed.closed
+
+
+def test_the_body_is_read_raw_with_decoding_off():
+    class Final:
+        status_code = 200
+        headers = {"content-type": "text/html"}
+        raw = RawBody(b"<html>ok</html>")
+
+        def close(self):
+            pass
+
+    assert fetch_one(Final()) == "<html>ok</html>"
+    assert Final.raw.calls == [(65536, False)]
+
+
+def test_every_hop_asks_for_an_uncompressed_body():
+    class Redirect:
+        status_code = 302
+        headers = {"Location": "https://cdn.example/final.html"}
+
+        def close(self):
+            pass
+
+    class Final:
+        status_code = 200
+        headers = {"content-type": "text/html"}
+        raw = RawBody(b"<html>ok</html>")
+
+        def close(self):
+            pass
+
+    asked = []
+
+    def fake_send(prepared, stream, timeout):
+        asked.append(prepared.headers.get("Accept-Encoding"))
+        return Redirect() if len(asked) == 1 else Final()
+
+    assert http_get_text("https://start.example/x", public_resolver, fake_send) == "<html>ok</html>"
+    assert asked == ["identity", "identity"]
+
+
+@pytest.mark.parametrize("headers", [
+    {"content-type": "text/html", "Content-Encoding": "identity"},
+    {"content-type": "text/html", "content-encoding": " Identity "},
+    {"content-type": "text/html", "Content-Encoding": ""},
+    {"content-type": "text/html"},
+], ids=["identity", "identity, spaced", "empty", "absent"])
+def test_an_uncompressed_response_is_still_accepted(headers):
+    class Final:
+        status_code = 200
+        raw = RawBody(b"<html>ok</html>")
+
+        def close(self):
+            pass
+
+    Final.headers = headers
+    assert fetch_one(Final()) == "<html>ok</html>"
+
+
+def test_a_real_gzip_bomb_is_refused_through_the_production_send(monkeypatch):
+    # Real requests and urllib3 objects this time: 5 MB of HTML-looking
+    # bytes gzip to a few kilobytes. The body must be refused unread.
+    import gzip
+    import io
+
+    import urllib3
+
+    class Wire(io.BytesIO):
+        taken = 0
+
+        def read(self, *args):
+            data = super().read(*args)
+            Wire.taken += len(data)
+            return data
+
+        def readinto(self, buffer):
+            count = super().readinto(buffer)
+            Wire.taken += count
+            return count
+
+    wire = Wire(gzip.compress(b"<html>" + b" " * 5_000_000))
+
+    class StubAdapter(BaseAdapter):
+        def send(self, request, stream=False, timeout=None, verify=True, cert=None, proxies=None):
+            response = requests.Response()
+            response.status_code = 200
+            response.headers = CaseInsensitiveDict({"Content-Type": "text/html",
+                                                    "Content-Encoding": "gzip"})
+            response.raw = urllib3.HTTPResponse(body=wire, headers=response.headers,
+                                                preload_content=False)
+            response.url = request.url
+            response.request = request
+            return response
+
+        def close(self):
+            pass
+
+    session = requests.Session()
+    session.mount("https://", StubAdapter())
+    monkeypatch.setattr(explainers, "_SESSION", session)
+    with pytest.raises(ExplainerError, match="compressed"):
+        http_get_text("https://start.example/bomb", public_resolver)
+    assert Wire.taken == 0
+    assert wire.closed
