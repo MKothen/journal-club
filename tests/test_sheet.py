@@ -608,3 +608,23 @@ def test_interest_is_keyed_by_its_doi_or_else_its_link(doi_cell, link_cell, key)
         INTEREST_HEADER, ["2026-09-20 09:00:00", "interest", "", "Ann", doi_cell, link_cell],
     ]))
     assert parsed.interest == {key: 1}
+
+
+# -- final review I6: blank rows under a checkbox column are not responses ------------
+
+ORGANISED = ["Timestamp", "Action", "Session", "Name", "Takeaway", "hide", "status", "checked by"]
+
+
+def test_blank_rows_filled_by_a_checkbox_column_are_skipped_silently():
+    # Checkboxes applied to the whole hide column fill every row down to the
+    # sheet's last with FALSE, and gspread returns every one of them.
+    real = ["2026-09-20 09:00:00", "takeaway", "2026-10-07", "Bo", "text", False, "", ""]
+    blanks = [["", "", "", "", "", False, "", ""] for _ in range(998)]
+    parsed = read_all(reader(Responses=[ORGANISED, real, *blanks]))
+    assert parsed.problems == []
+    assert len(parsed.contributions) == 1
+
+
+def test_a_row_with_only_a_name_typed_is_still_a_problem():
+    parsed = read_all(reader(Responses=[ORGANISED, ["", "", "", "Bo", "", False, "", ""]]))
+    assert any("Responses row 2" in p and "timestamp" in p for p in parsed.problems)

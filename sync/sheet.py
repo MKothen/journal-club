@@ -43,6 +43,9 @@ EXCEL_EPOCH = datetime(1899, 12, 30)
 PAGE_ID_RE = re.compile(r"^\d{4}-\d{2}-\d{2}(?:-(?:[a-z]|\d+))?$")
 
 _HIDE_TRUE = {"true", "yes", "y", "x", "1", "hide"}
+
+# Responses columns that organisers type in, rather than the form.
+ORGANISER_COLUMNS = ("hide", "status", "checked by")
 _HIDE_FALSE = {"false", "no", "0", ""}
 
 
@@ -337,6 +340,10 @@ def read_all(reader: TabReader) -> SheetData:
         )
     else:
         for i, row in enumerate(_rows(responses_values), start=2):
+            # Not a response: checkboxes applied to the whole hide column fill
+            # every row down to the sheet's last with FALSE.
+            if _blank(value for key, value in row.items() if key not in ORGANISER_COLUMNS):
+                continue
             if _is_hidden(row.get("hide", ""), i, data.problems):
                 continue
             _read_response_row(row, i, aliases, data)

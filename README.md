@@ -103,7 +103,7 @@ Several titles, such as `Name`, `DOI`, `Text` and `Link`, repeat across sections
 1. In the form's Responses view, choose **Link to Sheets** and create a new spreadsheet.
 2. Rename the tab the form created, such as "Form responses 1", to exactly `Responses`.
 3. Check that its first column is headed `Timestamp`. If your Google account is not in English, Google may have written it in your language. If so, change the header to `Timestamp`, then submit a test response and check that it lands under that header.
-4. To the right of the form's columns, add three columns headed `hide`, `status` and `checked by`. Organisers type in these. The `hide` column can be made into checkboxes.
+4. To the right of the form's columns, add three columns headed `hide`, `status` and `checked by`. Organisers type in these. The `hide` column can be made into checkboxes, down to the bottom of the sheet: a row with nothing in it but these three columns is not read as a response.
 5. Set the spreadsheet's time zone to Amsterdam, under **File**, **Settings**, **Time zone**. The sync reads every date and timestamp as a raw serial number, which counts days in the spreadsheet's own time zone, and then treats it as Amsterdam time. The sheet's locale does not matter.
 6. Add these tabs, each with this header row in row 1. Tab names must match exactly, capitals included. In headers, capitals do not matter but spelling does.
 
