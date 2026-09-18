@@ -141,3 +141,16 @@ def test_a_released_short_claim_frees_capacity_and_gets_the_next_free_id():
     ids = {s.presenter: s.page_id for s in second.slots}
     assert ids["Bo"] == "2026-10-07-b"
     assert ids["Dee"] == "2026-10-07-c"
+
+
+# Task 10 R3: a rejection notice is logged under its claim's key, so the
+# rejection must carry that key.
+
+def test_a_rejection_carries_the_key_of_the_claim_it_rejects():
+    rows = [
+        claim("Early", date(2026, 10, 7), "full", at(1, 9)),
+        claim("Late", date(2026, 10, 7), "full", at(3, 9)),
+        claim("Max", date(2026, 10, 21), "full", at(4, 9)),
+    ]
+    result = resolve_claims(SESSIONS, rows, {})
+    assert [r.key for r in result.rejections] == [claim_key(rows[1]), claim_key(rows[2])]

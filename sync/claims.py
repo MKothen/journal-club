@@ -27,6 +27,7 @@ class Rejection:
     name: str
     day: date | None
     reason: str          # "taken", "not-claimable"
+    key: str             # claim_key of the rejected row, which logs its notice
 
 
 @dataclass
@@ -50,12 +51,14 @@ def resolve_claims(sessions: list[Session], rows: list[dict], assigned: dict[str
         if row["hidden"]:
             continue
         if row["day"] not in claimable:
-            result.rejections.append(Rejection(row["name"], row["day"], "not-claimable"))
+            result.rejections.append(
+                Rejection(row["name"], row["day"], "not-claimable", claim_key(row))
+            )
             continue
 
         existing = live_formats.get(row["day"], [])
         if not _fits(row["fmt"], existing):
-            result.rejections.append(Rejection(row["name"], row["day"], "taken"))
+            result.rejections.append(Rejection(row["name"], row["day"], "taken", claim_key(row)))
             continue
 
         key = claim_key(row)
