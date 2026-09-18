@@ -201,10 +201,11 @@ Every message is written to `data/announcements.json` as `sending`, and committe
 
 The entry's name says which message it was. For example, `2026-10-14:monday` is Monday's announcement for 14 October, and `2026-10-14:claim` is a claim confirmation.
 
-1. Check the channel for the message.
+1. Check the channel for the message. Webhook posts appear under the webhook's name, not a person's. So search the channel for the session's date, written the way the messages write it, such as "14 October", rather than scrolling for a familiar name.
 2. If it is there, nothing more is needed.
 3. Never edit or delete the entry to make the system post it again. The system will never retry it, by design.
-4. If it is not there and the session has not started, post it once by hand from the templates in part 4. It never reached the channel, so this does not duplicate it.
+4. If the session has already started, post nothing. The message no longer helps, and the session page still exists.
+5. If it is not there and the session is still ahead, post it once by hand from the templates in part 4. It never reached the channel, so this does not duplicate it.
 
 ### Refresh an explainer
 
