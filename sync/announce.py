@@ -30,7 +30,11 @@ def due(now: datetime, sessions, slots, log: dict, settings: Settings) -> list[A
         if now >= session_start(session.day, settings):
             continue
         claimed = by_day.get(session.day, [])
-        newest = None
+
+        # Find the latest window that has opened and applies
+        latest_kind = None
+        latest_opens = None
+
         for kind, (offset, hour) in WINDOWS.items():
             if kind == "friday" and (claimed or session.kind == "open"):
                 continue
@@ -38,16 +42,20 @@ def due(now: datetime, sessions, slots, log: dict, settings: Settings) -> list[A
                 *(session.day + timedelta(days=offset)).timetuple()[:3],
                 hour, 0, tzinfo=session_start(session.day, settings).tzinfo,
             )
-            key = f"{session.day.isoformat()}:{kind}"
-            if now >= opens and key not in log:
-                newest = Announcement(key, kind, session.day, _text(kind, session, claimed, settings))
-        if newest is not None:
-            found.append(newest)
+            if now >= opens:
+                if latest_opens is None or opens > latest_opens:
+                    latest_opens = opens
+                    latest_kind = kind
+
+        if latest_kind is not None:
+            key = f"{session.day.isoformat()}:{latest_kind}"
+            if key not in log:
+                found.append(Announcement(key, latest_kind, session.day, _text(latest_kind, session, claimed, settings)))
     return found
 
 
 def _text(kind: str, session: Session, claimed: list[Slot], settings: Settings) -> str:
-    when = session.day.strftime("%A %d %B")
+    when = f"{session.day.day} {session.day.strftime('%B')}"
     where = f"{when} {settings.session_hour:02d}:{settings.session_minute:02d}, {settings.room}"
     if kind == "friday":
         return (f"No one has claimed {when} yet, so it is an open paper chat: "
@@ -61,7 +69,7 @@ def _text(kind: str, session: Session, claimed: list[Slot], settings: Settings) 
             f"({_format_name(slot.fmt)}): {settings.site_base_url}/sessions/{slot.page_id}/"
             for slot in claimed
         )
-    prefix = "Tomorrow" if kind == "monday" else "Today"
+    prefix = "This Wednesday" if kind == "monday" else "Today"
     return f"{prefix}, {where}. {body}"
 
 
@@ -96,3 +104,51 @@ def claim_announcements(now: datetime, slots, log: dict, settings: Settings) -> 
             f"({_format_name(slot.fmt)}): {settings.site_base_url}/sessions/{slot.page_id}/",
         ))
     return found
+
+
+def superseded(now: datetime, sessions, slots, log: dict, settings: Settings) -> list[str]:
+    """Return keys of windows that have opened and apply but are not the latest and are not yet logged."""
+    by_day: dict[date, list[Slot]] = {}
+    for slot in slots:
+        by_day.setdefault(slot.day, []).append(slot)
+
+    skipped = []
+    for session in sessions:
+        if session.status == "cancelled":
+            continue
+        if now >= session_start(session.day, settings):
+            continue
+        claimed = by_day.get(session.day, [])
+
+        # Find the latest window that has opened and applies
+        latest_kind = None
+        latest_opens = None
+
+        for kind, (offset, hour) in WINDOWS.items():
+            if kind == "friday" and (claimed or session.kind == "open"):
+                continue
+            opens = datetime(
+                *(session.day + timedelta(days=offset)).timetuple()[:3],
+                hour, 0, tzinfo=session_start(session.day, settings).tzinfo,
+            )
+            if now >= opens:
+                if latest_opens is None or opens > latest_opens:
+                    latest_opens = opens
+                    latest_kind = kind
+
+        # All windows that have opened but are not the latest are superseded
+        for kind, (offset, hour) in WINDOWS.items():
+            if kind == "friday" and (claimed or session.kind == "open"):
+                continue
+            if kind == latest_kind:
+                continue  # This is the latest, not superseded
+            opens = datetime(
+                *(session.day + timedelta(days=offset)).timetuple()[:3],
+                hour, 0, tzinfo=session_start(session.day, settings).tzinfo,
+            )
+            if now >= opens:
+                key = f"{session.day.isoformat()}:{kind}"
+                if key not in log:
+                    skipped.append(key)
+
+    return skipped
