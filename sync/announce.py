@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
 from sync.config import AMSTERDAM, Settings, session_start
+from sync.mattermost import neutral
 from sync.model import Session, Slot
 
 WINDOWS = {"friday": (-5, 9), "monday": (-2, 9), "wednesday": (0, 8)}
@@ -66,9 +67,10 @@ def _text(kind: str, session: Session, claimed: list[Slot], settings: Settings) 
                 f"{settings.site_base_url}/")
     if session.kind == "open":
         # A guest session is never claimed, but it is not an open paper chat.
-        body = session.title or "Open session"
+        # Its title and guest come from a tab every lab member can edit.
+        body = neutral(session.title or "Open session")
         if session.guest:
-            body += f", with {session.guest}"
+            body += f", with {neutral(session.guest)}"
         body += ". Open to people outside the lab."
         if session.length_minutes != 60:
             body += f" {session.length_minutes} minutes."
@@ -76,7 +78,7 @@ def _text(kind: str, session: Session, claimed: list[Slot], settings: Settings) 
         body = "Open paper chat: bring anything you read, no slides."
     else:
         body = " ".join(
-            f"{slot.presenter} on {slot.paper_title or slot.doi or 'a paper'} "
+            f"{neutral(slot.presenter)} on {neutral(slot.paper_title or slot.doi or 'a paper')} "
             f"({_format_name(slot.fmt)}): {settings.site_base_url}/sessions/{slot.page_id}/"
             for slot in claimed
         )
@@ -115,7 +117,7 @@ def claim_announcements(now: datetime, sessions, slots, log: dict, settings: Set
         day_str = f"{slot.day.day} {slot.day.strftime('%B')}"
         found.append(Announcement(
             key, "claim", slot.day,
-            f"{slot.presenter} claimed {slot.day.strftime('%A')} {day_str} "
+            f"{neutral(slot.presenter)} claimed {slot.day.strftime('%A')} {day_str} "
             f"({_format_name(slot.fmt)}): {settings.site_base_url}/sessions/{slot.page_id}/",
         ))
     return found

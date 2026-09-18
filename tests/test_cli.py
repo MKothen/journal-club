@@ -291,6 +291,37 @@ def test_a_rejection_links_the_next_open_sessions_page_when_its_date_id_is_retir
     assert "https://example.github.io/journal-club/sessions/2026-10-28-2/" in outside.posts[0]
 
 
+# -- final review I4: public form text never formats or notifies in Mattermost -----
+
+EVIL_NAME = "@channel\n[win](https://e.vil)"
+EVIL_TITLE = "![x](https://e.vil/p.png)"
+
+
+def test_form_text_reaches_mattermost_inert_in_every_post_that_quotes_it(tmp_path):
+    placed = claim("2026-09-20 09:00:00", "2026-10-28", EVIL_NAME)
+    placed[8] = EVIL_TITLE
+    outside = Outside(
+        placed,
+        claim("2026-09-21 09:00:00", "2026-10-28", EVIL_NAME),       # not placed
+        part("2026-10-15 09:00:00", "2026-10-28", EVIL_NAME, "synthesis",
+             text="Mine", status=""),                                  # waits for approval
+        row("2026-10-15 10:00:00", "takeaway", "2026-10-09", EVIL_NAME,
+            takeaway="Wrong page"),                                    # a sheet problem
+    )
+    cmd_sync(tmp_path, outside.effects())
+    cmd_announce(tmp_path, outside.effects(datetime(2026, 10, 26, 10, 0, tzinfo=AMSTERDAM)))
+
+    kinds = ["not placed", "waiting for approval", "The sheet has", "claimed", "This Wednesday"]
+    assert [next(k for k in kinds if k in post) for post in outside.posts] == kinds
+    inert = "@" + chr(0x200B) + "channel " + chr(92) + "[win" + chr(92) + "]"
+    for post in outside.posts:
+        assert inert in post
+        assert "@channel" not in post and "](" not in post and "![" not in post
+        assert "channel\n" not in post
+    assert outside.posts[1].count("\n") == 1     # the heading, then one line
+    assert outside.posts[2].count("\n") == 1
+
+
 def test_the_approval_nag_posts_once_per_change_in_the_pending_set(tmp_path):
     outside = Outside(part("2026-10-15 09:00:00", "2026-10-14", "Ann", "synthesis",
                            text="We were not convinced", status=""))

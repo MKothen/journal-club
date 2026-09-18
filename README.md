@@ -202,14 +202,14 @@ Only Max, as the owner, can change these secrets. The runbook's manual mode cove
 
 ### 8. First run and checks
 
-Run these checks on one clearly marked test session: the last one listed under "Upcoming" on the front page, the furthest ahead. Give every test submission the name `Test`, and start its text with `TEST`.
+Run these checks on one clearly marked test session: the last one listed under "Upcoming" on the front page, the furthest ahead. Give every test submission the name `Test`, unless a step says otherwise, and start its text with `TEST`.
 
 Hide every test row on the day you make it, approved ones included. Anything left unhidden for seven days enters the public repository's history, and stays there for good.
 
 1. Open the **Actions** tab, choose **sync**, and press **Run workflow**.
 2. Open the site. The front page should list the upcoming sessions, and the menu should include **Guide**.
 3. On the test session's page, add a test takeaway with its button. Run the workflow, and check that the takeaway appears.
-4. On the same page, submit a test discussion synthesis with **Add to this page**. Check that it does not appear until its row's `status` says `approved`, and that it does appear after.
+4. On the same page, submit a test discussion synthesis with **Add to this page**, under the name `@channel Test`. After the next run, Mattermost says it is waiting for approval: check that the post shows the name, and that it notified nobody in the channel. Check too that the synthesis does not appear until its row's `status` says `approved`, and that it does appear after.
 5. Share `web/explainer-template.html` on Google Drive with "Anyone with the link". Submit it on the test page as an explainer link, approve it, run the workflow, and check that it appears.
 6. Hide all three test rows. Run the workflow once more, and check that the test page is plain again.
 

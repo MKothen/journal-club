@@ -40,7 +40,7 @@ from sync.archive import read_json, write_data, write_json
 from sync.assemble import PART_NAMES, Built, build_pages
 from sync.config import AMSTERDAM, Settings, session_start
 from sync.explainers import ExplainerError, fetch_explainer, http_get_text, store_explainer
-from sync.mattermost import post
+from sync.mattermost import neutral, post
 from sync.model import Contribution, Page
 from sync.papers import http_fetch, paper_metadata
 from sync.sheet import GspreadReader, SheetData, TabReader, read_all
@@ -276,7 +276,7 @@ def _notices(built: Built, data: SheetData, failures, log: dict, now: datetime) 
 def _rejection(rejection, built: Built, settings: Settings, now: datetime) -> Message:
     when = f" for {_day(rejection.day)}" if rejection.day else ""
     reason = REJECTION_REASONS.get(rejection.reason, rejection.reason)
-    text = (f"{rejection.name}: your claim{when} was not placed, because {reason}. "
+    text = (f"{neutral(rejection.name)}: your claim{when} was not placed, because {reason}. "
             f"{_next_open(built, settings, now)}")
     return _single(f"reject:{rejection.key}", "reject", rejection.day or now.date(), text)
 
@@ -304,7 +304,7 @@ def _explainer_failure(page: Page, link: str, error: ExplainerError) -> Message:
 def _pending(rows: list[Contribution], now: datetime) -> Message:
     rows = sorted(rows, key=lambda r: r.submitted_at)
     head = "1 contribution is" if len(rows) == 1 else f"{len(rows)} contributions are"
-    lines = [f"- {PART_NAMES[r.part]} for page {r.page_id}, from {r.name}" for r in rows]
+    lines = [f"- {PART_NAMES[r.part]} for page {r.page_id}, from {neutral(r.name)}" for r in rows]
     text = f"{head} waiting for approval in the sheet:\n" + "\n".join(lines)
     key = f"pending:{len(rows)}:{rows[-1].submitted_at.isoformat()}"
     return _single(key, "pending", now.date(), text)
@@ -319,7 +319,9 @@ def _problem_digest(problems: list[str], log: dict, now: datetime) -> Message | 
     if not new:
         return None
     head = "The sheet has a new problem:" if len(new) == 1 else f"The sheet has {len(new)} new problems:"
-    text = head + "\n" + "\n".join(f"- {problem}" for problem in new.values())
+    # A problem quotes the cell it is about, so each line is made inert. Its
+    # key still hashes the raw text, as the log has always recorded it.
+    text = head + "\n" + "\n".join(f"- {neutral(problem)}" for problem in new.values())
     return Message(tuple(Announcement(key, "problem", now.date(), text) for key in new), text)
 
 
