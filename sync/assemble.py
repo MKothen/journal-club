@@ -37,23 +37,28 @@ class Built:
     slots: list[Slot] = field(default_factory=list)
     rejections: list[Rejection] = field(default_factory=list)
     assigned: dict[str, str] = field(default_factory=dict)
+    refused: set[str] = field(default_factory=set)
     pending: list[Contribution] = field(default_factory=list)
     problems: list[str] = field(default_factory=list)
 
 
-def build_pages(data: SheetData, assigned: dict[str, str], now: datetime) -> Built:
-    """`assigned` is the whole claim-key -> page-id map from data/slots.json.
-    The returned `built.assigned` is that map plus any new ids, and must be
-    persisted whole: see write_data."""
+def build_pages(data: SheetData, assigned: dict[str, str], now: datetime,
+                refused: set[str] = frozenset()) -> Built:
+    """`assigned` is the whole claim-key -> page-id map from data/slots.json,
+    and `refused` the whole set of refused claim keys from data/refused.json.
+    The returned `built.assigned` and `built.refused` are those plus this
+    run's additions, and must be persisted whole: see write_data."""
     sessions = generate_sessions(
         data.settings, data.skipped, data.open_sessions, data.status, now.date()
     )
-    claims = resolve_claims(sessions, data.claims, assigned)
+    starts = {s.day: session_start(s.day, data.settings) for s in sessions}
+    claims = resolve_claims(sessions, data.claims, assigned, refused, starts)
     built = Built(
         sessions=sessions,
         slots=[replace(s, presenter=_display(s.presenter, data.aliases)) for s in claims.slots],
         rejections=[replace(r, name=_display(r.name, data.aliases)) for r in claims.rejections],
         assigned=claims.assigned,
+        refused=claims.refused,
         pending=pending(data.contributions),
     )
 

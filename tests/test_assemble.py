@@ -127,3 +127,58 @@ def test_a_rejected_claimant_is_named_by_their_alias_but_keyed_by_their_claim_na
     )
     assert [r.name for r in built.rejections] == ["Bo de Vries"]
     assert built.rejections[0].key.endswith("|bo")
+
+
+# -- final review D1: a claim made once a same-day chat has started ------------------
+
+def test_a_claim_made_after_a_same_day_chat_started_leaves_the_chat_its_page():
+    # An open paper chat is held at 11:00 and gets a takeaway. Dee claims the
+    # session at 13:00 that day, and the 15:17 run resolves the claim.
+    parsed = read_all(reader(Responses=[
+        HEADER,
+        row("2026-10-14 12:10:00", "takeaway", "2026-10-14", "Cy", takeaway="We read one figure"),
+        row("2026-10-14 13:00:00", "claim", "2026-10-14", "Dee", fmt="full"),
+    ]))
+    built = build_pages(parsed, {}, datetime(2026, 10, 14, 15, 17, tzinfo=AMSTERDAM))
+    page = built.pages["2026-10-14"]
+    assert page.slot is None
+    assert [t.name for t in page.takeaways] == ["Cy"]
+    assert page.session.status == "held"
+    assert [(r.name, r.reason) for r in built.rejections] == [("Dee", "not-claimable")]
+    assert built.assigned == {}
+
+
+# -- final review D3: cancelling a claimed session keeps its page --------------------
+
+CLAIMED_LATER = [HEADER, row("2026-09-20 09:00:00", "claim", "2026-11-25", "Ann", fmt="full")]
+
+
+def test_cancelling_a_claimed_session_keeps_its_page_marked_cancelled_and_sends_no_notice():
+    first = build_pages(read_all(reader(Responses=CLAIMED_LATER)), {}, NOW)
+    cancelled = read_all(reader(
+        Responses=CLAIMED_LATER,
+        **{"Session status": [["date", "status"], ["2026-11-25", "cancelled"]]},
+    ))
+    second = build_pages(cancelled, first.assigned, NOW, first.refused)
+    page = second.pages["2026-11-25"]
+    assert page.slot.presenter == "Ann"
+    assert page.session.status == "cancelled"
+    assert second.rejections == []
+    assert second.assigned == first.assigned
+
+
+# -- final review D7: a claim refused beyond the horizon stays refused ---------------
+
+def test_a_claim_refused_beyond_the_horizon_stays_refused_once_the_date_is_in_range():
+    # With horizon_days 183, 2027-05-12 is beyond the horizon on 20 October
+    # 2026 and within it on 1 January 2027.
+    rows = [HEADER, row("2026-10-19 09:00:00", "claim", "2027-05-12", "Ann", fmt="full")]
+    parsed = read_all(reader(Responses=rows))
+    first = build_pages(parsed, {}, NOW)
+    assert [r.reason for r in first.rejections] == ["not-claimable"]
+
+    later = datetime(2027, 1, 1, 12, 0, tzinfo=AMSTERDAM)
+    second = build_pages(parsed, first.assigned, later, first.refused)
+    assert "2027-05-12" in {s.day.isoformat() for s in second.sessions}
+    assert second.slots == [] and second.rejections == []
+    assert second.pages["2027-05-12"].slot is None

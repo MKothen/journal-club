@@ -5,7 +5,10 @@ Two promises rest on this module:
 - The claim-id map in data/slots.json is written whole, never pruned to the
   live claims. claims.resolve_claims retires every id that has ever appeared
   in it, so dropping a hidden claim's entry would let its id be reissued and
-  move that page's takeaways onto someone else's page.
+  move that page's takeaways onto someone else's page. The refused-claim
+  list in data/refused.json is written whole for the same reason: a key
+  dropped from it would let a claim whose owner was told "not placed" be
+  placed after all.
 - The git archive, data/submissions.json, holds only publishable
   contributions. The repository is public and its history cannot be
   withdrawn, so an unapproved author reply must never reach it, even though
@@ -48,6 +51,7 @@ def write_json(path: Path, value) -> None:
 
 def write_data(root: Path, built, data, now: datetime) -> None:
     write_json(root / "data" / "slots.json", built.assigned)
+    write_json(root / "data" / "refused.json", sorted(built.refused))
     write_json(root / "data" / "schedule.json", built.sessions)
     write_json(root / "data" / "submissions.json",
                archivable(publishable(data.contributions), now))

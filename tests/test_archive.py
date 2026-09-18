@@ -103,3 +103,22 @@ def test_keepalive_month_holds_the_runs_year_and_month(tmp_path):
     parsed = data()
     write_data(tmp_path, build_pages(parsed, {}, now), parsed, now)
     assert read(tmp_path, "sync_state.json")["keepalive_month"] == "2026-07"
+
+
+# -- final review D7: the refused-claim record is written whole ------------------------
+
+def test_a_refused_claim_key_survives_the_round_trip_after_its_row_is_hidden(tmp_path):
+    ann = row("2026-09-20 09:00:00", "claim", "2026-10-28", "Ann", fmt="full")
+    bo = row("2026-09-21 09:00:00", "claim", "2026-10-28", "Bo", fmt="full")
+    first = read_all(reader(Responses=[HEADER, ann, bo]))
+    write_data(tmp_path, build_pages(first, {}, NOW), first, NOW)
+    bo_key = claim_key(first.claims[1])
+    assert read(tmp_path, "refused.json") == [bo_key]
+
+    # Bo's row is hidden. His refusal is still on record.
+    hidden = bo[:11] + ["yes"] + bo[12:]
+    second = read_all(reader(Responses=[HEADER, ann, hidden]))
+    built = build_pages(second, read(tmp_path, "slots.json"), NOW,
+                        set(read(tmp_path, "refused.json")))
+    write_data(tmp_path, built, second, NOW)
+    assert read(tmp_path, "refused.json") == [bo_key]

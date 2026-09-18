@@ -13,7 +13,9 @@ goes through the announcement log, data/announcements.json: its keys are
 written as "sending" and persisted to git BEFORE the post, then marked "sent".
 A run that dies after posting has already put "sending" into git, and a key
 already in the log is never posted again. If persisting fails, the message is
-not posted at all: at most once is the promise, not exactly once.
+not posted at all: at most once is the promise, not exactly once. The claim
+records, data/slots.json and data/refused.json, are persisted with the log,
+so a "not placed" notice never goes out while its refusal is still unrecorded.
 """
 
 import hashlib
@@ -45,6 +47,7 @@ from sync.sheet import GspreadReader, SheetData, TabReader, read_all
 
 ROOT = Path(__file__).resolve().parent.parent
 LOG = "data/announcements.json"
+CLAIM_RECORDS = ("data/slots.json", "data/refused.json")
 
 REJECTION_REASONS = {
     "taken": "that session is already taken",
@@ -76,16 +79,21 @@ def production_effects() -> Effects:
 
 
 def git_persist(root: Path, run=subprocess.run) -> None:
-    """Commit and push the announcement log, and only the log. There is no
-    safe.directory override: the runner owns its checkout. With nothing to
-    commit the push still runs, so an earlier commit whose push failed goes
-    out now, and a push with nothing new succeeds silently."""
-    run(["git", "add", LOG], cwd=root, check=True)
-    staged = run(["git", "diff", "--cached", "--quiet", "--", LOG], cwd=root)
+    """Commit and push the announcement log, with the claim records that
+    exist: a refusal must reach git no later than its "not placed" notice,
+    and the archive commit that follows the sync step may never happen. A
+    missing record is left out, since `git add` of a missing path fails.
+    Nothing else is committed here. There is no safe.directory override: the
+    runner owns its checkout. With nothing to commit the push still runs, so
+    an earlier commit whose push failed goes out now, and a push with nothing
+    new succeeds silently."""
+    paths = [LOG] + [path for path in CLAIM_RECORDS if (root / path).exists()]
+    run(["git", "add", *paths], cwd=root, check=True)
+    staged = run(["git", "diff", "--cached", "--quiet", "--", *paths], cwd=root)
     if staged.returncode not in (0, 1):
         raise subprocess.CalledProcessError(staged.returncode, staged.args)
     if staged.returncode == 1:
-        run(["git", "commit", "-m", "chore: announcement log", "--", LOG], cwd=root, check=True)
+        run(["git", "commit", "-m", "chore: announcement log", "--", *paths], cwd=root, check=True)
     run(["git", "push"], cwd=root, check=True)
 
 
@@ -153,7 +161,8 @@ def deliver(messages: list[Message], log: dict, log_path: Path,
 def _load(root: Path, fx: Effects) -> tuple[SheetData, Built]:
     data = read_all(fx.reader)
     assigned = read_json(root / "data" / "slots.json", {})
-    return data, build_pages(data, assigned, fx.now)
+    refused = set(read_json(root / "data" / "refused.json", []))
+    return data, build_pages(data, assigned, fx.now, refused)
 
 
 def cmd_sync(root: Path = ROOT, fx: Effects | None = None) -> int:
@@ -198,7 +207,7 @@ def cmd_announce(root: Path = ROOT, fx: Effects | None = None) -> int:
     log = read_json(log_path, {})
     for key in superseded(fx.now, built.sessions, built.slots, log, data.settings):
         mark_skipped(log, key)
-    found = (claim_announcements(fx.now, built.slots, log, data.settings)
+    found = (claim_announcements(fx.now, built.sessions, built.slots, log, data.settings)
              + due(fx.now, built.sessions, built.slots, log, data.settings))
     try:
         failed = deliver([Message((item,), item.text) for item in found],

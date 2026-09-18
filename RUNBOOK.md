@@ -54,7 +54,7 @@ GitHub often starts scheduled runs late, sometimes by an hour or more, and occas
 ### What each run does, in order
 
 1. Reads the sheet. Hidden rows are dropped.
-2. Places claims, earliest first, and gives each new page its address.
+2. Places claims, earliest first, and gives each new page its address. A claim made once its session has started is not placed.
 3. Looks up paper details for new DOIs.
 4. Copies approved explainers whose link is new.
 5. Posts notices to Mattermost: a claim that was not placed, contributions waiting for approval, new problems in the sheet, and explainers that could not be copied.
@@ -124,7 +124,8 @@ You run a session when Max is away. The room still belongs to the presenter. You
 
 - If people added takeaways, nothing else is needed. The session counts as held.
 - If it happened but nobody added a takeaway, add a row to the sheet's **Session status** tab: the date, and `held`.
-- If it could not happen, add the date and `cancelled` to **Session status**, and say so in the channel. If someone had claimed it, Mattermost then tells them their claim "was not placed" and links the next open session. That is expected.
+- If it could not happen, add the date and `cancelled` to **Session status**, and say so in the channel. If someone had claimed it, their page stays, marked cancelled, and Mattermost sends them nothing, so tell them yourself.
+- To call off a claimed session, mark it cancelled. Never add a claimed date to **Skipped weeks** or **Open sessions**.
 
 ---
 
@@ -163,12 +164,15 @@ In the **Responses** tab, put one of these in the **hide** column: `yes`, `y`, `
 - To show the row again, clear the cell, or type `no`, `false` or `0`.
 - Any other value also hides the row, and Mattermost reports it as a problem.
 - The row leaves the site at the next run.
-- Hiding a claim releases the session, so someone else can claim it.
+- Hiding a claim releases the session: a new claim can take it. Anyone whose claim for it was refused earlier stays refused and must claim again.
+- Do not unhide a claim once someone else has claimed its session. The older claim takes the session back, and the newer claimant's page disappears with no notice to them.
 - Hiding cannot remove what is already in the repository's history. That is any contribution older than seven days, the name and time of every claim, and every explainer file that was copied.
 
 ### Fix a sheet problem
 
 Mattermost posts "The sheet has a new problem", saying what is wrong, usually with the tab and row. Each problem is posted once. The row is skipped until you fix it or hide it.
+
+A claim row you fix counts from its own Timestamp, but it never takes a session from a claim that is already placed. If its session is taken by then, Mattermost tells the claimant it was not placed.
 
 - Type dates as `YYYY-MM-DD`.
 - Action, format and part cells must hold one of the form's options as the form wrote them.
@@ -298,6 +302,7 @@ Use this when the automation is broken in a way only Max can fix, such as an exp
 
 - Claims still arrive in the **Responses** tab. Read them in order of **Timestamp**.
 - For each session, the earliest claim wins. A session holds one "Help me read this" or "Full presentation", or up to two "Short slot on one figure".
+- A claim made once its session has started does not count.
 - Tell each claimant in the channel whether they got the session, from the templates below.
 
 **Keep a list of every message you post by hand**, with its session and its claimant if it has one. Before the automation runs again, the co-organiser or Max records each one in the repository, as in part 3, "Record a message posted by hand".
@@ -350,6 +355,6 @@ When a claim does not fit:
 
 ### Leaving manual mode
 
-The first run after the repair posts the newest due message for each upcoming session. It also posts a confirmation for every claim that arrived while the automation was down and whose session is still ahead, and a "not placed" notice for every claim that did not fit. None of these know about the messages posted by hand.
+The first run after the repair posts the newest due message for each upcoming session. It also posts a confirmation for every claim that arrived while the automation was down and whose session is still ahead, and a "not placed" notice for every claim that did not fit or was made once its session had started. A claim made in good time is placed even if its session has passed by then, but it gets no confirmation. None of these know about the messages posted by hand.
 
 So before that run, the co-organiser or Max records every message on the list, as in part 3, "Record a message posted by hand". Only then run the workflow.

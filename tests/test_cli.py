@@ -489,7 +489,7 @@ class FakeGit:
 LOG = "data/announcements.json"
 
 
-def test_persist_commits_only_the_announcement_log_and_pushes(tmp_path):
+def test_persist_without_claim_records_commits_only_the_announcement_log(tmp_path):
     git = FakeGit(staged=True)
     git_persist(tmp_path, run=git)
     assert git.commands == [
@@ -516,6 +516,45 @@ def test_persist_with_nothing_changed_makes_no_commit_but_still_pushes(tmp_path)
 def test_persist_raises_when_any_git_step_fails(tmp_path, failing):
     with pytest.raises(subprocess.CalledProcessError):
         git_persist(tmp_path, run=FakeGit(staged=True, failing=failing))
+
+
+# -- final review D7: a refusal reaches git no later than its notice -----------------
+
+@pytest.mark.parametrize("present", [["slots.json"], ["refused.json"], ["slots.json", "refused.json"]])
+def test_persist_commits_the_claim_records_that_exist_with_the_log(tmp_path, present):
+    (tmp_path / "data").mkdir()
+    for name in present:
+        (tmp_path / "data" / name).write_text("{}", encoding="utf-8")
+    paths = [LOG] + [f"data/{name}" for name in ("slots.json", "refused.json") if name in present]
+    git = FakeGit(staged=True)
+    git_persist(tmp_path, run=git)
+    assert git.commands == [
+        ["git", "add", *paths],
+        ["git", "diff", "--cached", "--quiet", "--", *paths],
+        ["git", "commit", "-m", "chore: announcement log", "--", *paths],
+        ["git", "push"],
+    ]
+
+
+def test_a_refused_claimant_is_never_placed_when_the_session_is_released(tmp_path):
+    ann = claim("2026-09-20 09:00:00", "2026-10-28", "Ann")
+    outside = Outside(ann, claim("2026-09-22 09:00:00", "2026-10-28", "Bo"))
+    assert cmd_sync(tmp_path, outside.effects()) == 0
+    assert len(outside.posts) == 1 and outside.posts[0].startswith("Bo")
+    bo = claim_key({"submitted_at": datetime(2026, 9, 22, 9, 0, tzinfo=AMSTERDAM), "name": "Bo"})
+    assert read(tmp_path, "refused.json") == [bo]
+
+    # Ann's row is hidden, which releases the session, and Cy claims it.
+    outside.rows[0] = ann[:11] + ["yes"] + ann[12:]
+    outside.rows.append(claim("2026-09-23 09:00:00", "2026-10-28", "Cy"))
+    assert cmd_sync(tmp_path, outside.effects()) == 0
+    assert len(outside.posts) == 1
+    assert bo not in read(tmp_path, "slots.json")
+
+    assert cmd_announce(tmp_path, outside.effects()) == 0
+    assert len(outside.posts) == 2
+    assert outside.posts[1].startswith("Cy claimed")
+    assert "/sessions/2026-10-28-2/" in outside.posts[1]
 
 
 # -- build and the entry point --------------------------------------------------

@@ -62,16 +62,16 @@ def test_a_cancelled_session_is_not_announced():
 
 def test_a_new_claim_is_confirmed_once():
     log = {}
-    found = claim_announcements(at(5, 9), [SLOT], log, settings())
+    found = claim_announcements(at(5, 9), [SESSION], [SLOT], log, settings())
     assert found[0].key == "2026-10-07:claim"
     assert "Ann" in found[0].text
     mark_sending(log, found[0])
     mark_sent(log, found[0])
-    assert claim_announcements(at(5, 10), [SLOT], log, settings()) == []
+    assert claim_announcements(at(5, 10), [SESSION], [SLOT], log, settings()) == []
 
 
 def test_claim_is_not_announced_if_session_already_started():
-    assert claim_announcements(at(7, 12), [SLOT], {}, settings()) == []
+    assert claim_announcements(at(7, 12), [SESSION], [SLOT], {}, settings()) == []
 
 
 def test_newest_only_holds_on_second_run():
@@ -184,3 +184,10 @@ def test_friday_not_posted_after_monday_logged():
     # Later run on Monday afternoon should return nothing
     found = due(at(5, 12), [SESSION], [], log, settings())
     assert found == []
+
+
+# -- final review D3: a claim kept on a cancelled session is never confirmed ---------
+
+def test_a_claim_on_a_cancelled_session_is_not_confirmed():
+    cancelled = Session(day=date(2026, 10, 7), kind="regular", status="cancelled")
+    assert claim_announcements(at(5, 9), [cancelled], [SLOT], {}, settings()) == []

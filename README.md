@@ -13,7 +13,7 @@ Day-to-day running, including what to do when something breaks, is in [RUNBOOK.m
 | `sync/` | Reads the sheet, places claims, copies explainers, posts to Mattermost |
 | `web/` | Builds the site: templates, stylesheet, and the explainer starter template |
 | `content/guide.md` | The presenter guide, shown on the site at `/guide/` |
-| `data/` | What the workflow commits: page addresses, schedule, archive, announcement log |
+| `data/` | What the workflow commits: page addresses, refused claims, schedule, archive, announcement log |
 | `explainers/` | Approved explainers, stored as text so they never run on the site's own origin |
 | `.github/workflows/sync.yml` | The workflow |
 | `tests/` | The test suite, which runs offline |
@@ -137,7 +137,8 @@ Only `Settings` must be filled in. Two mistakes stop every run, announcements in
 
 - Dates in `Open sessions`, `Skipped weeks` and `Session status` must fall on a regular session date: every other Wednesday from `first_session`. The sync ignores any other date without a warning.
 - `Open sessions`: an open session takes the place of the regular session on its date, and cannot be claimed. `length_minutes` is a whole number; a blank means 60. The `doi` is optional; with one, the page shows the paper's title and authors.
-- `Session status`: `status` is `cancelled` or `held`. Mark a session `held` only when it happened but nobody added a takeaway, since a takeaway already marks it held.
+- `Session status`: `status` is `cancelled` or `held`. Mark a session `held` only when it happened but nobody added a takeaway, since a takeaway already marks it held. A claimed session that is cancelled keeps its page, marked cancelled, and nobody is notified.
+- To call off a claimed session, mark it cancelled. Never add a claimed date to `Skipped weeks` or `Open sessions`: its page would disappear.
 - `Aliases`: maps a name variant to the name shown on the site. The match ignores capitals.
 
 **Sharing:** lab members and the co-organiser as editors. The service account from step 4 as a viewer.

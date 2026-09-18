@@ -92,11 +92,14 @@ def mark_skipped(log: dict, key: str) -> None:
     log[key] = {"state": "skipped", "at": datetime.now(AMSTERDAM).isoformat()}
 
 
-def claim_announcements(now: datetime, slots, log: dict, settings: Settings) -> list[Announcement]:
+def claim_announcements(now: datetime, sessions, slots, log: dict, settings: Settings) -> list[Announcement]:
+    # A claim placed before its session was cancelled keeps its page, but is
+    # never confirmed for a session that will not happen.
+    cancelled = {session.day for session in sessions if session.status == "cancelled"}
     found = []
     for slot in slots:
         # Skip if session has already started
-        if now >= session_start(slot.day, settings):
+        if now >= session_start(slot.day, settings) or slot.day in cancelled:
             continue
         key = f"{slot.page_id}:claim"
         if key in log:
