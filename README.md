@@ -171,7 +171,7 @@ A Mattermost system administrator must enable incoming webhooks in the System Co
 
 Then create an incoming webhook for the club's channel. Its address becomes the secret `MATTERMOST_WEBHOOK_URL`.
 
-Without this secret, the workflow prints each message in the run's log instead of posting it. It still records the message as sent, so it is not posted later when the webhook is added.
+Without this secret, the workflow adds each message to the run's summary page, the page that opens when you click the run in the **Actions** tab, for someone to paste into the channel. It also prints it in the step's log. It still records the message as sent, so it is not posted later when the webhook is added. The repository is public, so its run summaries are public too, like the site.
 
 ### 6. The monitor
 
@@ -251,4 +251,4 @@ Then open `http://localhost:8000/`. Serve the site like this rather than opening
 
 **`build` is safe.** It writes only `_site/`.
 
-**`sync` and `announce` act for real.** Before posting each message, they commit `data/announcements.json` and push it to the repository. With `MATTERMOST_WEBHOOK_URL` set, they really post to the channel. Without it, they print the messages instead, but still record them as sent and push the log, so the workflow will never post them. `sync` also rewrites `data/` and `explainers/` in your checkout. Run these two locally only when you mean to do the workflow's job by hand.
+**`sync` and `announce` act for real.** Before posting each message, they commit `data/announcements.json` and push it to the repository. With `MATTERMOST_WEBHOOK_URL` set, they really post to the channel. Without it, they print the messages instead, but still record them as sent and push the log, so the workflow will never post them. `sync` also rewrites `data/` and `explainers/` in your checkout. So outside GitHub Actions these two refuse to run unless `JOURNAL_CLUB_LOCAL` is set to `1`. Set it only when you mean to do the workflow's job by hand. In PowerShell: `$env:JOURNAL_CLUB_LOCAL = "1"`.

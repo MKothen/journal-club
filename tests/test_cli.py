@@ -651,3 +651,40 @@ def test_the_three_workflow_commands_exist():
 def test_a_bad_command_line_prints_usage_and_exits_2(argv, capsys):
     assert main(argv) == 2
     assert "usage" in capsys.readouterr().err
+
+
+
+# -- final review D5: sync and announce act only in the workflow, or on request -----
+
+def refuse_production_effects():
+    raise AssertionError("production_effects must not be built")
+
+
+@pytest.mark.parametrize("command", ["sync", "announce"])
+def test_a_local_sync_or_announce_is_refused_without_the_opt_in(command, monkeypatch, capsys):
+    monkeypatch.setattr("sync.cli.production_effects", refuse_production_effects)
+    assert main([command]) == 2
+    assert "JOURNAL_CLUB_LOCAL=1" in capsys.readouterr().err
+
+
+class Proceeded(Exception):
+    pass
+
+
+def proceed():
+    raise Proceeded
+
+
+@pytest.mark.parametrize("variable, value", [("GITHUB_ACTIONS", "true"), ("JOURNAL_CLUB_LOCAL", "1")])
+@pytest.mark.parametrize("command", ["sync", "announce"])
+def test_in_the_workflow_or_with_the_opt_in_the_command_runs(command, variable, value, monkeypatch):
+    monkeypatch.setenv(variable, value)
+    monkeypatch.setattr("sync.cli.production_effects", proceed)
+    with pytest.raises(Proceeded):
+        main([command])
+
+
+def test_build_needs_no_opt_in(monkeypatch):
+    monkeypatch.setattr("sync.cli.production_effects", proceed)
+    with pytest.raises(Proceeded):
+        main(["build"])

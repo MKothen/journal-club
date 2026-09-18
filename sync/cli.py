@@ -365,11 +365,24 @@ def _describe(error: Exception) -> str:
 COMMANDS = {"sync": cmd_sync, "build": cmd_build, "announce": cmd_announce}
 USAGE = "usage: python -m sync.cli {sync|build|announce}"
 
+# The commands that post and push. Run by accident on a laptop, one gains
+# nothing and can burn log keys in the real repository for good, so outside
+# GitHub Actions they need an explicit opt-in.
+ACTING = ("sync", "announce")
+LOCAL_OPT_IN = "JOURNAL_CLUB_LOCAL"
+
 
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
     if len(argv) != 1 or argv[0] not in COMMANDS:
         print(USAGE, file=sys.stderr)
+        return 2
+    if (argv[0] in ACTING and os.environ.get("GITHUB_ACTIONS") != "true"
+            and os.environ.get(LOCAL_OPT_IN) != "1"):
+        print(f"Not running '{argv[0]}' outside GitHub Actions. It commits and pushes "
+              "data/announcements.json before each message, and a message recorded "
+              "there is never posted by the workflow. To do the workflow's job by "
+              f"hand, set {LOCAL_OPT_IN}=1.", file=sys.stderr)
         return 2
     return COMMANDS[argv[0]]()
 

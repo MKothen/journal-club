@@ -1,4 +1,4 @@
-from sync.mattermost import post
+from sync.mattermost import neutral, post
 
 
 def test_the_message_is_posted_as_json_text():
@@ -27,8 +27,6 @@ def test_without_a_webhook_it_reports_failure_instead_of_raising(capsys):
 
 # -- final review I4: public form text is inert in a post ------------------------------
 
-from sync.mattermost import neutral  # noqa: E402
-
 ZWSP = chr(0x200B)
 BACKSLASH = chr(92)
 
@@ -48,3 +46,35 @@ def test_neutral_backslash_escapes_markdown_and_the_backslash_first():
 
 def test_neutral_leaves_plain_text_alone():
     assert neutral("Bo de Vries, 10.1038/nn.2479") == "Bo de Vries, 10.1038/nn.2479"
+
+
+# -- final review D5: with no webhook, each message goes to the run summary ------------
+
+FENCE = chr(96) * 3
+
+
+def test_without_a_webhook_the_message_is_appended_to_the_run_summary(tmp_path, monkeypatch):
+    summary = tmp_path / "summary.md"
+    summary.write_text("earlier" + chr(10), encoding="utf-8")
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
+    assert post("Ann claimed *Wednesday*", None) is False
+    assert post("second", None) is False
+    nl = chr(10)
+    assert summary.read_text(encoding="utf-8") == (
+        "earlier" + nl
+        + FENCE + "text" + nl + "Ann claimed *Wednesday*" + nl + FENCE + nl + nl
+        + FENCE + "text" + nl + "second" + nl + FENCE + nl + nl)
+
+
+def test_a_run_of_backticks_cannot_close_the_summary_fence(tmp_path, monkeypatch):
+    summary = tmp_path / "summary.md"
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
+    post("a " + FENCE + " b " + chr(96) * 5, None)
+    body = summary.read_text(encoding="utf-8").split(chr(10))[1]
+    assert FENCE not in body
+    assert body.startswith("a ")
+
+
+def test_without_a_webhook_or_a_summary_it_only_prints(tmp_path, capsys):
+    assert post("hello", None) is False
+    assert "hello" in capsys.readouterr().out
