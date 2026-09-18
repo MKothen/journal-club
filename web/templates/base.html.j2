@@ -10,7 +10,7 @@
 <meta property="og:title" content="{{ self.title() }}">
 <meta property="og:description" content="{{ self.description() }}">
 <meta property="og:type" content="website">
-<meta property="og:url" content="{{ settings.site_base_url }}/{{ path }}">
+<meta property="og:url" content="{{ settings.site_base_url.rstrip('/') }}/{{ path }}">
 {% block head %}{% endblock %}
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23fcfcfa'/%3E%3Cpath d='M5 21 L27 17 L27 25 L5 27 Z' fill='%23ffe45c'/%3E%3Cpath d='M7 11h18M7 16h13' stroke='%231c2230' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="{{ root }}static/style.css">

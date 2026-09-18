@@ -46,7 +46,7 @@
 {% if new_year and not loop.first %}
     <li class="year" aria-hidden="true">{{ gathering.session.day.year }}</li>
 {% endif %}
-    <li class="rung{% if gathering.free %} is-free{% endif %}">
+    <li class="rung">
       <time class="date" datetime="{{ gathering.session.day.isoformat() }}">{{ gathering.session.day|short_date }}</time>
       <div class="what">
 {% for view in gathering.views %}

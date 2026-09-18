@@ -428,14 +428,17 @@ def _read_response_row(row: dict, row_num: int, aliases: dict[str, str], data: S
             submitted_at=when,
         ))
     elif action == "interest":
-        doi = normalise_doi(_opt_str(row, "doi"))
+        doi_cell = _str(row.get("doi", ""))
         link = _str(row.get("link", ""))
-        if not doi and not link:
+        if not doi_cell and not link:
             data.problems.append(
                 f"Responses row {row_num} has neither a DOI nor a link; skipping the row."
             )
             return
-        key = doi or link
+        # The form's one paper question may be titled "DOI" and still receive
+        # a link, so both columns are read alike: a value holding a DOI counts
+        # under that DOI, normalised, and anything else under its own text.
+        key = normalise_doi(doi_cell) or normalise_doi(link) or doi_cell or link
         data.interest[key] = data.interest.get(key, 0) + 1
 
 

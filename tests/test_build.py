@@ -10,7 +10,8 @@ import pytest
 from sync.assemble import build_pages
 from sync.config import AMSTERDAM
 from sync.model import Contribution, WishlistEntry
-from tests.test_sheet import data
+from sync.sheet import read_all
+from tests.test_sheet import data, reader
 from web.build import form_link, render
 
 NOW = datetime(2026, 10, 20, 12, 0, tzinfo=AMSTERDAM)
@@ -42,15 +43,28 @@ def contribution(part, name="Ann", text="", link=None, approved=True, page_id=PA
                         submitted_at=when, approved=approved, checked_by=None)
 
 
-def with_explainer(tmp_path, approved=True, stored=True):
+EXPLAINER_LINK = "https://example.org/explainer.html"
+
+
+def with_explainer(tmp_path, approved=True, stored=True, link=EXPLAINER_LINK,
+                   recorded=EXPLAINER_LINK):
+    """An explainer contribution for PAGE. When `stored`, its file is in
+    explainers/ and data/explainers.json records `recorded` as the link that
+    file was fetched from, as the sync's _copy_explainers does."""
     parsed = data()
-    parsed.contributions.append(
-        contribution("explainer", link="https://example.org/explainer.html", approved=approved))
+    parsed.contributions.append(contribution("explainer", link=link, approved=approved))
     if stored:
-        folder = tmp_path / "explainers" / PAGE
-        folder.mkdir(parents=True)
-        (folder / "explainer.txt").write_text(EXPLAINER, encoding="utf-8")
+        store_explainer(tmp_path, recorded)
     return parsed
+
+
+def store_explainer(tmp_path, recorded=EXPLAINER_LINK):
+    folder = tmp_path / "explainers" / PAGE
+    folder.mkdir(parents=True)
+    (folder / "explainer.txt").write_text(EXPLAINER, encoding="utf-8")
+    record = tmp_path / "data" / "explainers.json"
+    record.parent.mkdir(parents=True, exist_ok=True)
+    record.write_text(json.dumps({PAGE: recorded}), encoding="utf-8")
 
 
 # -- form links (R2) ----------------------------------------------------------------
@@ -103,6 +117,23 @@ def test_id_come_prefills_the_papers_doi_or_else_its_link(tmp_path):
     assert html.count(">I'd come</a>") == 2
 
 
+def test_interest_read_from_the_sheet_counts_on_the_wishlist(tmp_path):
+    # The paper question is titled "DOI" and received a DOI URL for one
+    # paper and, for a link-only preprint, the preprint's link.
+    biorxiv = "https://www.biorxiv.org/content/10.1101/2025.01.01.000001v1"
+    parsed = data()
+    parsed.interest = read_all(reader(Responses=[
+        ["Timestamp", "Action", "Session", "Name", "DOI", "Link"],
+        ["2026-10-02 09:00:00", "interest", "", "Cy", "https://doi.org/10.1038/NN.2479", ""],
+        ["2026-10-02 10:00:00", "interest", "", "Dee", biorxiv, ""],
+    ])).interest
+    when = datetime(2026, 10, 1, 9, 0, tzinfo=AMSTERDAM)
+    parsed.wishlist += [WishlistEntry("10.1038/nn.2479", "Replay in cortex", None, "Lotte", "", when),
+                        WishlistEntry(None, "A preprint", biorxiv, "Max", "", when)]
+    html = read(rendered(tmp_path, parsed), "wishlist")
+    assert html.count("One person would come") == 2
+
+
 def test_without_a_paper_question_the_wishlist_has_no_id_come_button(tmp_path):
     html = wishlist(tmp_path, "")
     assert "I'd come" not in html
@@ -128,21 +159,43 @@ def test_an_explainer_is_never_linked_or_served_as_html(tmp_path):
             if "explainer" in p.name] == ["explainer.txt"]
 
 
+def assert_no_explainer_published(site):
+    assert not (site / "sessions" / PAGE / "explainer.txt").exists()
+    html = read(site, "sessions", PAGE)
+    assert "<iframe" not in html and "<script" not in html
+
+
 @pytest.mark.parametrize("approved", [None, False], ids=["no contribution", "unapproved"])
 def test_a_stored_explainer_is_published_only_while_approved(tmp_path, approved):
+    # The file and its fetch record are both in place; only approval is missing.
     parsed = data() if approved is None else with_explainer(tmp_path, approved=False, stored=False)
-    folder = tmp_path / "explainers" / PAGE
-    folder.mkdir(parents=True)
-    (folder / "explainer.txt").write_text(EXPLAINER, encoding="utf-8")
-    site = rendered(tmp_path, parsed)
-    assert not (site / "sessions" / PAGE / "explainer.txt").exists()
-    assert "<iframe" not in read(site, "sessions", PAGE)
+    store_explainer(tmp_path)
+    assert_no_explainer_published(rendered(tmp_path, parsed))
 
 
 def test_an_approved_explainer_whose_file_was_never_stored_shows_no_frame(tmp_path):
-    site = rendered(tmp_path, with_explainer(tmp_path, stored=False))
-    html = read(site, "sessions", PAGE)
-    assert "<iframe" not in html and "<script" not in html
+    assert_no_explainer_published(rendered(tmp_path, with_explainer(tmp_path, stored=False)))
+
+
+def test_a_stored_file_fetched_from_another_link_is_not_published(tmp_path):
+    # A newer version was approved, fetched and then withdrawn, and the
+    # approved older link's refetch failed: the file on disk is the withdrawn one.
+    parsed = with_explainer(tmp_path, recorded="https://example.org/withdrawn.html")
+    assert_no_explainer_published(rendered(tmp_path, parsed))
+
+
+def test_a_stored_file_with_no_fetch_record_is_not_published(tmp_path):
+    parsed = with_explainer(tmp_path)
+    (tmp_path / "data" / "explainers.json").unlink()
+    assert_no_explainer_published(rendered(tmp_path, parsed))
+
+
+@pytest.mark.parametrize("recorded", [True, False], ids=["with a fetch record", "without one"])
+def test_an_approved_explainer_row_without_a_link_publishes_nothing(tmp_path, recorded):
+    parsed = with_explainer(tmp_path, link=None)
+    if not recorded:  # no link and no record must not count as a match
+        (tmp_path / "data" / "explainers.json").unlink()
+    assert_no_explainer_published(rendered(tmp_path, parsed))
 
 
 # -- a plain page looks finished (R5) -------------------------------------------------
@@ -257,10 +310,13 @@ def test_the_front_page_gallery_shows_held_pages_only(tmp_path):
 
 
 def test_the_gallery_does_not_mark_which_pages_have_an_explainer(tmp_path):
-    site = rendered(tmp_path, with_explainer(tmp_path))
-    assert (site / "sessions" / PAGE / "explainer.txt").exists()
-    for html in (read(site), read(site, "library")):
-        assert "explainer" not in html.lower()
+    # The same site with and without an explainer on PAGE: the gallery and
+    # the library must not differ by a single byte.
+    with_one = rendered(tmp_path / "with", with_explainer(tmp_path / "with"))
+    without = rendered(tmp_path / "without", data())
+    assert (with_one / "sessions" / PAGE / "explainer.txt").exists()
+    assert read(with_one).split('id="gallery"')[1] == read(without).split('id="gallery"')[1]
+    assert read(with_one, "library") == read(without, "library")
 
 
 def test_no_session_page_carries_a_start_here_block(tmp_path):
@@ -330,8 +386,10 @@ def test_the_people_page_lists_each_person_once_in_alphabetical_order(tmp_path):
 def test_a_link_that_is_not_http_is_never_rendered(tmp_path):
     parsed = data()
     parsed.claims[0]["paper_link"] = "javascript:alert(1)"
-    parsed.contributions.append(
-        contribution("next", name="Bo", text="Look", link="javascript:alert(2)"))
+    parsed.contributions += [
+        contribution("next", name="Bo", text="Look", link="javascript:alert(2)"),
+        contribution("slides", link="javascript:alert(4)"),
+    ]
     parsed.wishlist.append(WishlistEntry(
         doi=None, paper_title="Bad", paper_link="javascript:alert(3)", name="Cy", why="",
         submitted_at=datetime(2026, 10, 1, 9, 0, tzinfo=AMSTERDAM)))
@@ -396,3 +454,45 @@ def test_the_signals_page_exists_but_is_not_in_the_navigation(tmp_path):
     for name, html in all_pages(site).items():
         if not name.startswith("signals"):
             assert "signals/" not in html, name
+
+
+# -- how cached paper metadata reads (fix round 1) -------------------------------------
+
+def with_cached_paper(tmp_path, record: dict):
+    """The fixture, with PAGE's DOI cached as `record` and a wishlist entry
+    suggesting the same paper."""
+    parsed = data()
+    parsed.wishlist.append(WishlistEntry(
+        doi="10.1000/xyz", paper_title=None, paper_link=None, name="Cy", why="",
+        submitted_at=datetime(2026, 10, 1, 9, 0, tzinfo=AMSTERDAM)))
+    cache = tmp_path / "data" / "papers" / "cache.json"
+    cache.parent.mkdir(parents=True)
+    cache.write_text(json.dumps({"10.1000/xyz": {"doi": "10.1000/xyz", "year": 2025,
+                                                 "url": "https://doi.org/10.1000/xyz", **record}}),
+                     encoding="utf-8")
+    site = rendered(tmp_path, parsed)
+    return read(site, "sessions", PAGE), read(site, "wishlist")
+
+
+def test_a_long_author_list_ends_in_one_period(tmp_path):
+    authors = ", ".join(f"A. Author{n}" for n in range(8))
+    for html in with_cached_paper(tmp_path, {"title": "T", "authors": authors, "venue": "Neuron"}):
+        assert "A. Author2 et al. " in html
+        assert "et al.." not in html
+
+
+def test_markup_in_a_cached_title_comes_out_as_plain_text(tmp_path):
+    title = "<i>In vivo</i> replay <script>alert(1)</script>in <sub>CA3</sub> &lt;b&gt;now&lt;/b&gt;"
+    for html in with_cached_paper(tmp_path, {"title": title, "authors": "A. Kim", "venue": "Neuron"}):
+        assert "In vivo replay alert(1)in CA3 now" in html
+        assert "<i>In vivo" not in html and "&lt;i&gt;" not in html
+        assert "<script>alert" not in html and "&lt;script&gt;" not in html
+
+
+def test_og_url_has_no_double_slash_when_the_base_url_ends_in_one(tmp_path):
+    parsed = data()
+    parsed.settings = replace(parsed.settings, site_base_url="https://example.github.io/journal-club/")
+    site = rendered(tmp_path, parsed)
+    assert '<meta property="og:url" content="https://example.github.io/journal-club/">' in read(site)
+    assert ('<meta property="og:url" content="https://example.github.io/journal-club/sessions/'
+            f'{PAGE}/">') in read(site, "sessions", PAGE)

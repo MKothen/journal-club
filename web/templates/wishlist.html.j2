@@ -16,7 +16,7 @@
   <li>
     <h2>{% if item.paper and item.paper.url %}<a href="{{ item.paper.url }}">{{ item.title }}</a>{% else %}{{ item.title }}{% endif %}</h2>
 {% if item.paper and (item.paper.authors or item.paper.venue) %}
-    <p class="citation">{% if item.paper.authors %}{{ item.paper.authors|authors }}. {% endif %}{% if item.paper.venue %}<cite>{{ item.paper.venue }}</cite>{% if item.paper.year %}, {{ item.paper.year }}{% endif %}.{% endif %}</p>
+    <p class="citation">{% if item.paper.authors %}{{ item.paper.authors|authors|sentence }} {% endif %}{% if item.paper.venue %}<cite>{{ item.paper.venue }}</cite>{% if item.paper.year %}, {{ item.paper.year }}{% endif %}.{% endif %}</p>
 {% endif %}
 {% if item.entry.why|trim %}
     <blockquote>{{ item.entry.why|paragraphs }}</blockquote>

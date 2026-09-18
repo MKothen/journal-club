@@ -544,3 +544,24 @@ def test_entry_paper_defaults_to_empty_and_is_not_a_problem(tab):
     parsed = read_all(reader(Settings=tab))
     assert parsed.settings.entry_paper == ""
     assert not any("entry_paper" in p for p in parsed.problems)
+
+
+# -- interest is keyed by the DOI it names, whichever column carries it ---------
+# One form question behind entry_paper may be titled "DOI" and still receive
+# a link, so both columns are read the same way: a value that holds a DOI is
+# keyed by that DOI, normalised; anything else by the text as given.
+
+INTEREST_HEADER = ["Timestamp", "Action", "Session", "Name", "DOI", "Link"]
+
+
+@pytest.mark.parametrize("doi_cell, link_cell, key", [
+    ("https://doi.org/10.1038/NN.2479", "", "10.1038/nn.2479"),
+    ("https://example.org/preprint", "", "https://example.org/preprint"),
+    ("", "10.1038/nn.2479", "10.1038/nn.2479"),
+    ("", "https://example.org/preprint", "https://example.org/preprint"),
+], ids=["doi in doi column", "link in doi column", "doi in link column", "link in link column"])
+def test_interest_is_keyed_by_its_doi_or_else_its_link(doi_cell, link_cell, key):
+    parsed = read_all(reader(Responses=[
+        INTEREST_HEADER, ["2026-09-20 09:00:00", "interest", "", "Ann", doi_cell, link_cell],
+    ]))
+    assert parsed.interest == {key: 1}

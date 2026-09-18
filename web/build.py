@@ -7,8 +7,9 @@ The rules the templates rely on come from the spec (3.3, 5.1 and 6.6):
   completeness meters, no badges. A page without an explainer never mentions
   one.
 - An explainer is submitted HTML that runs scripts. It is copied into the
-  site only while its contribution is approved, always as explainer.txt, and
-  a session page runs it only by fetching that text into an iframe sandboxed
+  site only while its contribution is approved and the stored file was
+  fetched from that contribution's link, always as explainer.txt, and a
+  session page runs it only by fetching that text into an iframe sandboxed
   with allow-scripts and without allow-same-origin.
 - Anything a visitor typed is escaped, and a submitted link becomes a link
   only when it is http or https. Every Pages site under one account shares
@@ -18,7 +19,6 @@ The rules the templates rely on come from the spec (3.3, 5.1 and 6.6):
 """
 
 import html
-import json
 import re
 import shutil
 import statistics
@@ -31,9 +31,11 @@ import segno
 from jinja2 import Environment, FileSystemLoader
 from markupsafe import Markup, escape
 
+from sync.archive import read_json
 from sync.assemble import Built
 from sync.config import ACTION_LABELS, FORMAT_LABELS, Settings
 from sync.model import Contribution, Page, Session, WishlistEntry
+from sync.papers import normalise_doi
 from sync.sheet import SheetData
 
 TEMPLATES = Path(__file__).resolve().parent / "templates"
@@ -162,8 +164,8 @@ class Suggestion:
     @property
     def names(self) -> str | None:
         """What an "I'd come" answer records to name this paper: its DOI, or
-        else its link. The sheet counts interest by exactly these, and ignores
-        interest that has neither."""
+        else its link. The sheet counts interest under the DOI a value holds,
+        or else its text, and ignores interest that names neither."""
         return self.entry.doi or self.entry.paper_link
 
 
@@ -172,8 +174,9 @@ def _paper(doi: str | None, title: str | None, link: str | None, papers: dict) -
     otherwise the DOI or title as given (spec 6.4, step 4)."""
     cached = papers.get(doi) if doi else None
     if cached:
-        return Paper(title=cached.get("title") or title, authors=cached.get("authors") or None,
-                     venue=cached.get("venue") or None, year=cached.get("year"), doi=doi,
+        return Paper(title=_plain(cached.get("title")) or title,
+                     authors=_plain(cached.get("authors")), venue=_plain(cached.get("venue")),
+                     year=cached.get("year"), doi=doi,
                      url=safe_url(cached.get("url")) or f"https://doi.org/{doi}")
     url = f"https://doi.org/{doi}" if doi else safe_url(link)
     if not (title or url):
@@ -258,7 +261,9 @@ def _suggestions(data: SheetData, papers: dict) -> list[Suggestion]:
         paper = _paper(entry.doi, entry.paper_title, entry.paper_link, papers)
         title = ((paper and paper.title) or entry.doi
                  or (link_label(paper.url) if paper and paper.url else "A paper"))
-        keys = {key for key in (entry.doi, entry.paper_link) if key}
+        # The sheet counts interest under the DOI a value holds, or else its
+        # text, so a link that holds a DOI is counted under that DOI.
+        keys = {key for key in (entry.doi, normalise_doi(entry.paper_link), entry.paper_link) if key}
         out.append(Suggestion(entry, paper, title, sum(data.interest.get(k, 0) for k in keys)))
     return out
 
@@ -312,6 +317,27 @@ def _paragraphs(text: str | None, inner: str | None = None) -> Markup:
 def _authors(authors: str | None) -> str:
     names = [name for name in (authors or "").split(", ") if name]
     return ", ".join(names[:3]) + " et al." if len(names) > 6 else ", ".join(names)
+
+
+def _sentence(text: str) -> str:
+    """Text ending in one full stop. "et al." and a title that ends in a
+    question mark gain none."""
+    return text if text[-1:] in (".", "?", "!") else text + "."
+
+
+_TAG = re.compile(r"<[^>]*>")
+
+
+def _plain(text: str | None) -> str | None:
+    """Metadata as plain text. Crossref titles carry inline markup such as
+    <i>In vivo</i>; the tags are dropped and entities decoded, twice so that
+    an entity-encoded tag goes too. The result is never marked safe: the
+    templates escape it like any other text."""
+    if not text:
+        return None
+    for _ in range(2):
+        text = html.unescape(_TAG.sub("", text))
+    return " ".join(text.split()) or None
 
 
 # -- the guide's Markdown ------------------------------------------------------------
@@ -439,7 +465,7 @@ def _environment(settings: Settings, has_guide: bool) -> Environment:
                       trim_blocks=True, lstrip_blocks=True)
     env.filters.update(long_date=_long_date, day_month=_day_month, short_date=_short_date,
                        paragraphs=_paragraphs, safe_url=safe_url, link_label=link_label,
-                       authors=_authors)
+                       authors=_authors, sentence=_sentence)
     env.globals.update(settings=settings, form_link=form_link, has_guide=has_guide,
                        clock=f"{settings.session_hour:02d}:{settings.session_minute:02d}",
                        formats=[(FORMAT_LABELS[code], FORMAT_NOTES[code]) for code in FORMAT_LABELS])
@@ -456,9 +482,15 @@ def _write(out: Path, env: Environment, path: str, template: str, **context) -> 
     target.write_text(text, encoding="utf-8", newline="\n")
 
 
-def _read_papers(root: Path) -> dict:
-    path = root / "data" / "papers" / "cache.json"
-    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+def _publishes_explainer(page: Page, stored: Path, fetched: dict) -> bool:
+    """Whether the stored explainer is the one currently approved for this
+    page. page.explainer is set only from an approved contribution, and
+    data/explainers.json records the link the stored file was fetched from.
+    The two must match: after a withdrawal or a failed refetch the file on
+    disk can be an older or withdrawn version, and an approved row with no
+    link names no file at all. With no record, nothing is published."""
+    link = page.explainer.link if page.explainer else None
+    return bool(link) and fetched.get(page.page_id) == link and stored.exists()
 
 
 def render(root: Path, built: Built, data: SheetData) -> None:
@@ -470,18 +502,16 @@ def render(root: Path, built: Built, data: SheetData) -> None:
     shutil.copytree(STATIC, out / "static")
 
     settings = data.settings
-    papers = _read_papers(root)
+    papers = read_json(root / "data" / "papers" / "cache.json", {})
+    fetched = read_json(root / "data" / "explainers.json", {})
     guide_file = root / "content" / "guide.md"
     guide = guide_file.read_text(encoding="utf-8") if guide_file.exists() else None
     env = _environment(settings, has_guide=guide is not None)
 
-    # An explainer is published only while page.explainer is set, which the
-    # sync does only for an approved contribution. A withdrawn one keeps its
-    # stored file but never reaches the site.
     stored = {page_id: root / "explainers" / page_id / "explainer.txt" for page_id in built.pages}
     views = {
         page_id: _view(page, data, papers,
-                       explainer=page.explainer is not None and stored[page_id].exists())
+                       explainer=_publishes_explainer(page, stored[page_id], fetched))
         for page_id, page in built.pages.items()
     }
     gatherings = _gatherings(built, views, settings)
