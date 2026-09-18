@@ -54,6 +54,27 @@ def test_a_cancelled_session_stays_cancelled_even_with_a_takeaway():
     assert built.pages["2026-11-11"].session.status == "cancelled"
 
 
+# -- a takeaway marks a session held only once it has started ----------------
+
+def test_a_takeaway_on_a_future_session_attaches_but_leaves_it_scheduled():
+    parsed = read_all(reader(Responses=[
+        HEADER, row("2026-10-19 12:00:00", "takeaway", "2026-11-25", "Bo", takeaway="Early"),
+    ]))
+    page = build_pages(parsed, {}, NOW).pages["2026-11-25"]
+    assert page.session.status == "scheduled"
+    assert [t.text for t in page.takeaways] == ["Early"]
+
+
+def test_a_takeaway_counts_from_the_moment_the_session_starts():
+    parsed = read_all(reader(Responses=[
+        HEADER, row("2026-10-28 10:00:00", "takeaway", "2026-10-28", "Bo", takeaway="On the day"),
+    ]))
+    before = datetime(2026, 10, 28, 10, 59, tzinfo=AMSTERDAM)
+    at_start = datetime(2026, 10, 28, 11, 0, tzinfo=AMSTERDAM)
+    assert build_pages(parsed, {}, before).pages["2026-10-28"].session.status == "scheduled"
+    assert build_pages(parsed, {}, at_start).pages["2026-10-28"].session.status == "held"
+
+
 # -- R6: a contribution naming a page that does not exist is reported -------
 
 def test_a_takeaway_for_a_page_that_does_not_exist_is_reported_as_a_problem():

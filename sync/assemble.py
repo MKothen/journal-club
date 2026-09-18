@@ -1,5 +1,7 @@
 """Turn sheet data into pages. A page exists for every session; only sessions
-with evidence are marked held.
+with evidence are marked held. A takeaway is evidence only once its session
+has started: an early one still attaches to its page, but the session stays
+scheduled, so it is never both upcoming and in the library.
 
 Names are aliased here for display only, after resolve_claims has fixed every
 page id. The claim key embeds the claimant's name as submitted, so aliasing
@@ -10,6 +12,7 @@ from dataclasses import dataclass, field, replace
 from datetime import datetime
 
 from sync.claims import Rejection, resolve_claims
+from sync.config import session_start
 from sync.contributions import attach, pending
 from sync.model import Contribution, Page, Session, Slot
 from sync.schedule import generate_sessions
@@ -73,7 +76,7 @@ def build_pages(data: SheetData, assigned: dict[str, str], now: datetime) -> Bui
     for page in built.pages.values():
         if page.session.status in ("cancelled", "held"):
             continue
-        if page.takeaways:
+        if page.takeaways and now >= session_start(page.session.day, data.settings):
             page.session = replace(page.session, status="held")
     return built
 

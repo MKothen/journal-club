@@ -167,6 +167,18 @@ def test_the_library_lists_a_sessions_short_slots_in_order(tmp_path):
     assert html.index("2026-10-14") < html.index("2026-09-30-a") < html.index("2026-09-30-b")
 
 
+def test_a_future_session_with_an_early_takeaway_is_upcoming_and_not_in_the_library(tmp_path):
+    parsed = data()
+    parsed.contributions.append(contribution(
+        "takeaway", name="Bo", text="Early", page_id=FREE,
+        when=datetime(2026, 10, 19, 12, 0, tzinfo=AMSTERDAM)))
+    site = rendered(tmp_path, parsed)
+    front = read(site)
+    assert FREE not in read(site, "library")
+    assert f"sessions/{FREE}/" in front.split('id="upcoming"')[1].split('id="gallery"')[0]
+    assert f"sessions/{FREE}/" not in front.split('id="gallery"')[1]
+
+
 def test_the_front_page_shows_open_sessions_with_a_claim_link(tmp_path):
     html = read(rendered(tmp_path))
     assert "Claim this" in html
