@@ -20,6 +20,7 @@ Other cells may likewise arrive as numbers or booleans rather than strings.
 """
 
 import json
+import math
 import re
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
@@ -109,11 +110,20 @@ def _serial_to_datetime(value: float) -> datetime:
     """Sheets serial day number -> naive datetime, rounded to the whole
     second. `claim_key` (sync/claims.py) embeds submitted_at, so any float
     wobble between two reads of the same cell would move page ids."""
-    return EXCEL_EPOCH + timedelta(seconds=round(value * 86400))
+    try:
+        return EXCEL_EPOCH + timedelta(seconds=round(value * 86400))
+    except OverflowError:
+        raise ValueError(f"serial number out of range: {value!r}") from None
 
 
 def _serial_to_date(value: float) -> date:
-    return (EXCEL_EPOCH + timedelta(days=round(value))).date()
+    """A date is the calendar day the serial falls in, so it is floored, not
+    rounded (a timestamp rounds to the whole second instead, since claim
+    keys depend on that, not on the calendar day)."""
+    try:
+        return (EXCEL_EPOCH + timedelta(days=math.floor(value))).date()
+    except OverflowError:
+        raise ValueError(f"serial number out of range: {value!r}") from None
 
 
 def _timestamp(raw: object) -> datetime:
@@ -223,7 +233,15 @@ def _session_as_page_id(value: object) -> str:
 
 
 def _valid_page_id(row: dict, row_num: int, problems: list[str]) -> str | None:
-    session_id = _session_as_page_id(row.get("session", ""))
+    raw_session = row.get("session", "")
+    try:
+        session_id = _session_as_page_id(raw_session)
+    except ValueError:
+        problems.append(
+            f"Responses row {row_num} has an unreadable session "
+            f"'{_str(raw_session)}'; skipping the row."
+        )
+        return None
     if not PAGE_ID_RE.fullmatch(session_id):
         problems.append(
             f"Responses row {row_num} has an unreadable session '{session_id}'; "

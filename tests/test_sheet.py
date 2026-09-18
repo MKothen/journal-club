@@ -472,3 +472,59 @@ def test_an_interest_row_with_neither_doi_nor_link_is_skipped_and_reported():
     ]))
     assert parsed.interest == {}
     assert any("neither a DOI nor a link" in p for p in parsed.problems)
+
+
+# -- fix round 2 --------------------------------------------------------------
+# N1: a numeric date/timestamp far outside the calendar range must not crash.
+# An organiser typing a compact date like 20261007 gets a plain number under
+# UNFORMATTED_VALUE, and the resulting serial is far too large for a date.
+
+def test_a_large_numeric_timestamp_is_reported_not_crashed():
+    parsed = read_all(reader(Responses=[
+        ["Timestamp", "Action", "Session", "Name", "Format", "DOI"],
+        [20261007, "claim", "2026-10-07", "Ann", "help", "10.1000/xyz"],
+    ]))
+    assert parsed.claims == []
+    assert any("timestamp" in p for p in parsed.problems)
+
+
+def test_a_large_numeric_takeaway_session_is_reported_not_crashed():
+    parsed = read_all(reader(Responses=[
+        ["Timestamp", "Action", "Session", "Name", "Takeaway"],
+        ["2026-09-20 09:00:00", "takeaway", 20261007, "Bo", "a takeaway"],
+    ]))
+    assert parsed.contributions == []
+    assert any("unreadable session" in p for p in parsed.problems)
+
+
+def test_a_large_numeric_date_in_skipped_weeks_is_reported_not_crashed():
+    parsed = read_all(reader(**{"Skipped weeks": [["date"], [23122026]]}))
+    assert parsed.skipped == set()
+    assert any("Skipped weeks" in p for p in parsed.problems)
+
+
+def test_a_large_numeric_settings_first_session_is_a_fatal_value_error_naming_the_key():
+    with pytest.raises(ValueError, match="first_session"):
+        read_all(reader(Settings=with_settings(first_session=20261007)))
+
+
+# n1: a date serial is the calendar day it falls in, so it floors rather than
+# rounds (a timestamp still rounds to the whole second: claim_key depends on
+# that, not on the calendar day).
+
+def test_a_fractional_date_serial_floors_to_its_calendar_day():
+    parsed = read_all(reader(**{"Skipped weeks": [["date"], [46302.75]]}))
+    assert date(2026, 10, 7) in parsed.skipped
+
+
+# The Settings `0` fix (require() no longer treats 0 as missing): a mutant
+# that restores the old falsy check passes every other test in this file.
+
+def test_a_settings_session_minute_of_integer_zero_is_read_as_zero():
+    parsed = read_all(reader(Settings=with_settings(session_minute=0)))
+    assert parsed.settings.session_minute == 0
+
+
+def test_a_blank_settings_session_minute_is_still_a_fatal_value_error():
+    with pytest.raises(ValueError, match="session_minute"):
+        read_all(reader(Settings=with_settings(session_minute="")))
