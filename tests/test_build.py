@@ -507,3 +507,36 @@ def test_og_url_has_no_double_slash_when_the_base_url_ends_in_one(tmp_path):
     assert '<meta property="og:url" content="https://example.github.io/journal-club/">' in read(site)
     assert ('<meta property="og:url" content="https://example.github.io/journal-club/sessions/'
             f'{PAGE}/">') in read(site, "sessions", PAGE)
+
+
+# -- final review D6: the guide links a published copy of the starter file ----------
+
+REPOSITORY = Path(__file__).resolve().parent.parent
+
+
+def with_the_real_guide(tmp_path) -> Path:
+    guide = tmp_path / "content" / "guide.md"
+    guide.parent.mkdir()
+    guide.write_bytes((REPOSITORY / "content" / "guide.md").read_bytes())
+    return rendered(tmp_path)
+
+
+def test_the_explainer_template_is_published_beside_the_guide_unchanged(tmp_path):
+    site = with_the_real_guide(tmp_path)
+    published = site / "guide" / "explainer-template.html"
+    assert published.read_bytes() == (REPOSITORY / "web" / "explainer-template.html").read_bytes()
+
+
+def test_the_guide_links_the_published_starter_file(tmp_path):
+    assert 'href="explainer-template.html"' in read(with_the_real_guide(tmp_path), "guide")
+
+
+def test_the_guide_keeps_dropping_unsafe_links(tmp_path):
+    guide = tmp_path / "content" / "guide.md"
+    guide.parent.mkdir()
+    guide.write_text("[a](javascript:alert(1)) [b](//evil.example/x) [c](data:text/html,hi) "
+                     "[d](notes/page.html#part-2)\n", encoding="utf-8")
+    # Only the guide's own article: the page head carries a data: favicon.
+    guide = read(rendered(tmp_path), "guide").split('<article class="prose guide">')[1]
+    assert "javascript:" not in guide and "evil.example" not in guide and "data:" not in guide
+    assert '<a href="notes/page.html#part-2">d</a>' in guide

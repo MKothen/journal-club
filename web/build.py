@@ -10,7 +10,9 @@ The rules the templates rely on come from the spec (3.3, 5.1 and 6.6):
   site only while its contribution is approved and the stored file was
   fetched from that contribution's link, always as explainer.txt, and a
   session page runs it only by fetching that text into an iframe sandboxed
-  with allow-scripts and without allow-same-origin.
+  with allow-scripts and without allow-same-origin. The one HTML file with
+  scripts published as it is, /guide/explainer-template.html, is the
+  presenter guide's starter file: this repository's code, not a submission.
 - Anything a visitor typed is escaped, and a submitted link becomes a link
   only when it is http or https. Every Pages site under one account shares
   an origin, so a javascript: link would run with all of them.
@@ -40,6 +42,9 @@ from sync.sheet import SheetData
 
 TEMPLATES = Path(__file__).resolve().parent / "templates"
 STATIC = Path(__file__).resolve().parent / "static"
+# The presenter guide's starter file, published beside the guide. It is this
+# repository's own code, not submitted content, so it is served as it is.
+EXPLAINER_TEMPLATE = Path(__file__).resolve().parent / "explainer-template.html"
 GALLERY_SIZE = 6
 
 MONTHS = ("January", "February", "March", "April", "May", "June", "July",
@@ -343,7 +348,9 @@ def _plain(text: str | None) -> str | None:
 # -- the guide's Markdown ------------------------------------------------------------
 # The guide is written in this repository, so a small subset is enough:
 # headings, paragraphs, flat lists, block quotes, fenced code, and inline
-# code, links, bold and italics. Raw HTML is shown as text.
+# code, links, bold and italics. Raw HTML is shown as text. Being trusted
+# text, the guide may also link a relative path, such as the starter file
+# published beside it; submitted content never goes through this renderer.
 
 _HEADING = re.compile(r"^(#{1,6})\s+(.*?)\s*#*\s*$")
 _BULLET = re.compile(r"^\s*[-*+]\s+(.*)$")
@@ -355,6 +362,15 @@ _LINK = re.compile(r"\[([^\]]+)\]\(([^)\s]+)\)")
 _STRONG = re.compile(r"\*\*(.+?)\*\*")
 _EM = re.compile(r"(?<![\w*])\*(?![\s*])(.+?)(?<!\s)\*(?![\w*])|(?<!\w)_(?!\s)(.+?)(?<!\s)_(?!\w)")
 _HOLE = re.compile("\x00(\\d+)\x00")
+_RELATIVE = re.compile(r"[A-Za-z0-9._/-]+(#[A-Za-z0-9_-]+)?")
+
+
+def _guide_url(url: str) -> str | None:
+    """A guide link's target: an http or https URL, or a relative path that
+    can name neither another host nor a scheme."""
+    if _RELATIVE.fullmatch(url) and not url.startswith("//") and ":" not in url:
+        return url
+    return safe_url(url)
 
 
 def _emphasis(text: str) -> str:
@@ -372,7 +388,7 @@ def _inline(text: str) -> str:
         return f"\x00{len(held) - 1}\x00"
 
     def link(match: re.Match) -> str:
-        url = safe_url(html.unescape(match.group(2)))
+        url = _guide_url(html.unescape(match.group(2)))
         label = _emphasis(match.group(1))
         return hold(f'<a href="{escape(url)}">{label}</a>') if url else label
 
@@ -532,6 +548,7 @@ def render(root: Path, built: Built, data: SheetData) -> None:
     if guide is not None:
         title, body = markdown(guide)
         _write(out, env, "guide/", "guide.html.j2", nav="guide", title=title, body=body)
+        shutil.copyfile(EXPLAINER_TEMPLATE, out / "guide" / "explainer-template.html")
     _write(out, env, "signals/", "signals.html.j2", signals=_signals(built, gatherings))
 
     for page_id, view in views.items():

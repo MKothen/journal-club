@@ -90,7 +90,7 @@ A plain page is a finished page. An interactive explainer is an extra, for when 
 
 ### Start from the template
 
-The club keeps a starter file, `web/explainer-template.html`, in the site's repository. Ask Max or the co-organiser for a copy. It has one figure, one slider, and marked places for the model and for the paper's result, all in the site's style.
+The club keeps a starter file, `web/explainer-template.html`, in the site's repository. To get a copy, open [the starter file](explainer-template.html) and save the page from your browser. It has one figure, one slider, and marked places for the model and for the paper's result, all in the site's style.
 
 A good explainer takes an afternoon. An LLM can write most of the code if you describe the model to it: what goes in, the equations, the parameter values from the paper, and the figure you want to reproduce. Ask it to keep everything in the one file, with nothing loaded from other sites and no browser storage. Then check its numbers against the paper yourself.
 

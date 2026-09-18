@@ -11,7 +11,7 @@ Day-to-day running, including what to do when something breaks, is in [RUNBOOK.m
 | Path | Holds |
 |---|---|
 | `sync/` | Reads the sheet, places claims, copies explainers, posts to Mattermost |
-| `web/` | Builds the site: templates, stylesheet, and the explainer starter template |
+| `web/` | Builds the site: templates, stylesheet, and the explainer starter template, which the site publishes beside the guide |
 | `content/guide.md` | The presenter guide, shown on the site at `/guide/` |
 | `data/` | What the workflow commits: page addresses, refused claims, schedule, archive, announcement log |
 | `explainers/` | Approved explainers, stored as text so they never run on the site's own origin |
