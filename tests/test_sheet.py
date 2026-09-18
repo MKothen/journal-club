@@ -249,3 +249,226 @@ def test_a_duplicate_column_keeps_the_first_non_empty_value_when_the_second_is_b
         ["2026-09-20 09:00:00", "claim", "2026-10-07", "Ann", "help", "10.1000/xyz", ""],
     ]))
     assert parsed.claims[0]["name"] == "Ann"
+
+
+# -- fix round 1 --------------------------------------------------------------
+# I1: a bad date in a hand-edited tab is a problem, not a crash.
+
+def test_a_blank_date_in_skipped_weeks_is_skipped_and_reported():
+    parsed = read_all(reader(**{"Skipped weeks": [["date"], [""]]}))
+    assert parsed.skipped == set()
+    assert any("Skipped weeks" in p for p in parsed.problems)
+
+
+def test_a_non_iso_date_in_open_sessions_is_skipped_and_reported():
+    parsed = read_all(reader(**{
+        "Open sessions": [["date", "title", "guest", "affiliation", "doi", "length_minutes"],
+                          ["21 Oct", "Guest talk", "A. Author", "Elsewhere", "", "90"]],
+    }))
+    assert parsed.open_sessions == {}
+    assert any("Open sessions" in p and "21 Oct" in p for p in parsed.problems)
+
+
+def test_a_blank_date_in_session_status_is_skipped_and_reported():
+    parsed = read_all(reader(**{"Session status": [["date", "status"], ["", "cancelled"]]}))
+    assert parsed.status == {}
+    assert any("Session status" in p for p in parsed.problems)
+
+
+# I2: a takeaway or page row needs a well-formed page id.
+
+def test_a_takeaway_with_a_blank_session_is_skipped_and_reported():
+    parsed = read_all(reader(Responses=[
+        ["Timestamp", "Action", "Session", "Name", "Takeaway"],
+        ["2026-09-20 09:00:00", "takeaway", "", "Bo", "a takeaway"],
+    ]))
+    assert parsed.contributions == []
+    assert any("unreadable session" in p for p in parsed.problems)
+
+
+def test_a_takeaway_with_a_non_page_id_session_is_skipped_and_reported():
+    parsed = read_all(reader(Responses=[
+        ["Timestamp", "Action", "Session", "Name", "Takeaway"],
+        ["2026-09-20 09:00:00", "takeaway", "7 Oct", "Bo", "a takeaway"],
+    ]))
+    assert parsed.contributions == []
+    assert any("unreadable session" in p and "7 Oct" in p for p in parsed.problems)
+
+
+def test_a_well_formed_re_claimed_page_id_is_accepted():
+    parsed = read_all(reader(Responses=[
+        ["Timestamp", "Action", "Session", "Name", "Takeaway"],
+        ["2026-09-20 09:00:00", "takeaway", "2026-10-07-2", "Bo", "a takeaway"],
+    ]))
+    assert [c.page_id for c in parsed.contributions] == ["2026-10-07-2"]
+
+
+# I3: locale-independent dates and timestamps via Sheets serial numbers.
+
+def test_a_serial_timestamp_parses_to_the_right_amsterdam_datetime():
+    parsed = read_all(reader(Responses=[
+        ["Timestamp", "Action", "Session", "Name", "Format", "DOI"],
+        [46285.375, "claim", "2026-10-07", "Ann", "help", "10.1000/xyz"],
+    ]))
+    assert parsed.claims[0]["submitted_at"] == datetime(2026, 9, 20, 9, 0, tzinfo=AMSTERDAM)
+
+
+def test_converting_the_same_serial_twice_gives_an_identical_claim_key():
+    # Two reads of the "same" cell, with the kind of float noise a real API
+    # can introduce between calls without the underlying second changing.
+    from sync.claims import claim_key
+
+    def rows_with_serial(serial):
+        return [
+            ["Timestamp", "Action", "Session", "Name", "Format", "DOI"],
+            [serial, "claim", "2026-10-07", "Ann", "help", "10.1000/xyz"],
+        ]
+
+    first = read_all(reader(Responses=rows_with_serial(46285.375))).claims[0]
+    second = read_all(reader(Responses=rows_with_serial(46285.3750000001))).claims[0]
+    assert claim_key(first) == claim_key(second)
+
+
+def test_a_serial_session_cell_becomes_the_iso_date_page_id():
+    parsed = read_all(reader(Responses=[
+        ["Timestamp", "Action", "Session", "Name", "Takeaway"],
+        ["2026-09-20 09:00:00", "takeaway", 46302, "Bo", "a takeaway"],
+    ]))
+    assert [c.page_id for c in parsed.contributions] == ["2026-10-07"]
+
+
+def test_a_serial_date_in_skipped_weeks_parses():
+    parsed = read_all(reader(**{"Skipped weeks": [["date"], [46379]]}))
+    assert date(2026, 12, 23) in parsed.skipped
+
+
+# I4: only recognised hide values hide a row; an unchecked checkbox (FALSE)
+# must not hide everything.
+
+@pytest.mark.parametrize("hidden_value", ["TRUE", "yes", "y", "x", "1", "hide", "Hide"])
+def test_a_recognised_true_hide_value_hides_the_row(hidden_value):
+    parsed = read_all(reader(Responses=[
+        ["Timestamp", "Action", "Session", "Name", "Takeaway", "hide"],
+        ["2026-09-20 09:00:00", "takeaway", "2026-10-07", "Bo", "text", hidden_value],
+    ]))
+    assert parsed.contributions == []
+    assert parsed.problems == []
+
+
+@pytest.mark.parametrize("visible_value", ["FALSE", "no", "0", ""])
+def test_a_recognised_false_hide_value_keeps_the_row_visible(visible_value):
+    parsed = read_all(reader(Responses=[
+        ["Timestamp", "Action", "Session", "Name", "Takeaway", "hide"],
+        ["2026-09-20 09:00:00", "takeaway", "2026-10-07", "Bo", "text", visible_value],
+    ]))
+    assert len(parsed.contributions) == 1
+    assert parsed.problems == []
+
+
+def test_a_boolean_true_hide_cell_hides_the_row():
+    parsed = read_all(reader(Responses=[
+        ["Timestamp", "Action", "Session", "Name", "Takeaway", "hide"],
+        ["2026-09-20 09:00:00", "takeaway", "2026-10-07", "Bo", "text", True],
+    ]))
+    assert parsed.contributions == []
+    assert parsed.problems == []
+
+
+def test_a_boolean_false_hide_cell_keeps_the_row_visible():
+    parsed = read_all(reader(Responses=[
+        ["Timestamp", "Action", "Session", "Name", "Takeaway", "hide"],
+        ["2026-09-20 09:00:00", "takeaway", "2026-10-07", "Bo", "text", False],
+    ]))
+    assert len(parsed.contributions) == 1
+    assert parsed.problems == []
+
+
+def test_an_unrecognised_hide_value_hides_the_row_and_is_reported():
+    parsed = read_all(reader(Responses=[
+        ["Timestamp", "Action", "Session", "Name", "Takeaway", "hide"],
+        ["2026-09-20 09:00:00", "takeaway", "2026-10-07", "Bo", "text", "maybe"],
+    ]))
+    assert parsed.contributions == []
+    assert any("hide" in p and "maybe" in p for p in parsed.problems)
+
+
+# I5: aliasing must never move an already-assigned claim's page.
+
+def test_adding_an_alias_after_a_claim_leaves_its_claim_name_unchanged():
+    rows = [
+        ["Timestamp", "Action", "Session", "Name", "Format", "DOI"],
+        ["2026-09-20 09:00:00", "claim", "2026-10-14", "bo", "help", "10.1000/xyz"],
+    ]
+    before = read_all(reader(Responses=rows))
+    assert before.claims[0]["name"] == "bo"
+
+    after = read_all(reader(
+        Responses=rows,
+        Aliases=[["alias", "display name"], ["bo", "Bo de Vries"]],
+    ))
+    assert after.claims[0]["name"] == "bo"
+    assert after.aliases["bo"] == "Bo de Vries"
+
+
+# m2: a valid length_minutes is used as given, not just defaulted to 60.
+
+def test_a_valid_length_minutes_of_90_is_used_as_is():
+    assert data().open_sessions[date(2026, 10, 21)]["length_minutes"] == 90
+
+
+# m3: a tab missing a whole required column raises a clear ValueError.
+
+def test_a_settings_tab_missing_the_value_header_raises_a_value_error():
+    with pytest.raises(ValueError, match="Settings"):
+        read_all(reader(Settings=[["key"], ["club_name"]]))
+
+
+def test_an_aliases_tab_missing_the_display_name_header_raises_a_value_error():
+    with pytest.raises(ValueError, match="Aliases"):
+        read_all(reader(Aliases=[["alias"], ["bo"]]))
+
+
+# m4: an alias with a blank display name is ignored and reported.
+
+def test_an_alias_with_a_blank_display_name_is_ignored_and_reported():
+    parsed = read_all(reader(Aliases=[["alias", "display name"], ["bo", ""]]))
+    assert "bo" not in parsed.aliases
+    assert any("Aliases" in p and "bo" in p for p in parsed.problems)
+
+
+# m6: a missing Responses tab is reported, not silently read as empty.
+
+def test_a_missing_responses_tab_records_a_problem():
+    fake = FakeReader({"Settings": SETTINGS_TAB})  # no "Responses" key at all
+    parsed = read_all(fake)
+    assert any("Responses" in p for p in parsed.problems)
+
+
+# m7: an empty name, an empty takeaway, or an interest row with neither a DOI
+# nor a link is a problem, not a silent pass-through.
+
+def test_a_claim_with_an_empty_name_is_skipped_and_reported():
+    parsed = read_all(reader(Responses=[
+        ["Timestamp", "Action", "Session", "Name", "Format", "DOI"],
+        ["2026-09-20 09:00:00", "claim", "2026-10-07", "", "help", "10.1000/xyz"],
+    ]))
+    assert parsed.claims == []
+    assert any("empty name" in p for p in parsed.problems)
+
+
+def test_a_takeaway_with_empty_text_is_skipped_and_reported():
+    parsed = read_all(reader(Responses=[
+        ["Timestamp", "Action", "Session", "Name", "Takeaway"],
+        ["2026-09-20 09:00:00", "takeaway", "2026-10-07", "Bo", ""],
+    ]))
+    assert parsed.contributions == []
+    assert any("empty takeaway" in p for p in parsed.problems)
+
+
+def test_an_interest_row_with_neither_doi_nor_link_is_skipped_and_reported():
+    parsed = read_all(reader(Responses=[
+        ["Timestamp", "Action", "Session", "Name", "DOI", "Link"],
+        ["2026-09-20 09:00:00", "interest", "2026-10-07", "Ann", "", ""],
+    ]))
+    assert parsed.interest == {}
+    assert any("neither a DOI nor a link" in p for p in parsed.problems)
