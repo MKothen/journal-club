@@ -1,0 +1,12 @@
+{% extends "base.html.j2" %}
+
+{% block title %}{{ title.striptags() if title else "Presenter guide" }} | {{ settings.club_name }}{% endblock %}
+
+{% block description %}How to present at {{ settings.club_name }}, from help me read this to a polished page.{% endblock %}
+
+{% block content %}
+<article class="prose guide">
+  <h1>{{ title or "Presenter guide" }}</h1>
+{{ body }}
+</article>
+{% endblock %}

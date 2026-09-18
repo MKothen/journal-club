@@ -1,0 +1,21 @@
+{% extends "base.html.j2" %}
+
+{% block title %}Signals | {{ settings.club_name }}{% endblock %}
+
+{% block description %}What the {{ settings.club_name }} site can count, for the quarterly review.{% endblock %}
+
+{% block head %}
+<meta name="robots" content="noindex">
+{% endblock %}
+
+{% block content %}
+<header class="page-head">
+  <h1>Signals</h1>
+  <p class="lede">What the site can count, for the quarterly review. These count activity, which is not the same as value. Voices in the discussion, learning and access are judged by the people in the room.</p>
+</header>
+<dl class="signals">
+{% for label, value in signals %}
+  <div><dt>{{ label }}</dt><dd>{{ value }}</dd></div>
+{% endfor %}
+</dl>
+{% endblock %}

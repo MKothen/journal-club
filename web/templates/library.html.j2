@@ -1,0 +1,28 @@
+{% extends "base.html.j2" %}
+
+{% block title %}Library | {{ settings.club_name }}{% endblock %}
+
+{% block description %}Every session {{ settings.club_name }} has held, each with its own page.{% endblock %}
+
+{% block content %}
+<header class="page-head">
+  <h1>Library</h1>
+  <p class="lede">Every session the club has held, newest first. Each page belongs to the person who presented.</p>
+</header>
+{% for year, views in library.items() %}
+<section class="year-group" aria-labelledby="year-{{ year }}">
+  <h2 id="year-{{ year }}">{{ year }}</h2>
+  <ol class="catalogue">
+{% for view in views %}
+    <li>
+      <time datetime="{{ view.day.isoformat() }}">{{ view.day|short_date }}</time>
+      <div>
+        <a href="../sessions/{{ view.page_id }}/">{{ view.heading }}</a>
+        {% if view.presenter %}<span class="who">{{ view.presenter }}</span>{% endif %}
+      </div>
+    </li>
+{% endfor %}
+  </ol>
+</section>
+{% endfor %}
+{% endblock %}

@@ -1,0 +1,89 @@
+{% extends "base.html.j2" %}
+
+{# A free session's line is said once, under Up next, not on every free rung. #}
+{% macro byline(view, session, featured=False) %}
+{% if view.kind == "slot" %}
+<p class="who">{{ view.presenter }}<span class="format">{{ view.fmt }}</span></p>
+{% elif view.kind == "guest" %}
+<p class="who">{% if view.presenter %}With {{ view.presenter }}{% if view.affiliation %}, {{ view.affiliation }}{% endif %}. {% endif %}{% if session.length_minutes != 60 %}{{ session.length_minutes }} minutes, and open{% else %}Open{% endif %} to people outside the lab.</p>
+{% elif featured %}
+<p class="who">Bring anything you read, no slides. Or claim it, and bring a paper of your own.</p>
+{% endif %}
+{% endmacro %}
+
+{% macro claim(gathering) %}
+{% if gathering.claim %}
+<a class="claim" href="{{ gathering.claim }}">{% if gathering.free %}Claim this{% else %}Claim the second short slot{% endif %}</a>
+{% endif %}
+{% endmacro %}
+
+{% block content %}
+<section class="intro">
+  <h1>Bring a paper you want help with, or one you want to talk about.</h1>
+  <p class="lede">{{ settings.club_name }} meets every other Wednesday at {{ clock }} in {{ settings.room }}. Whoever presents chooses the paper and the format, and the room helps. You are welcome without having read anything.</p>
+</section>
+
+{% if up_next %}
+<section id="up-next" class="up-next" aria-labelledby="up-next-title">
+  <h2 id="up-next-title">Up next</h2>
+  <p class="when"><time datetime="{{ up_next.session.day.isoformat() }}">{{ up_next.session.day|long_date }}</time>, {{ clock }}, {{ settings.room }}</p>
+{% for view in up_next.views %}
+  <div class="entry">
+    <p class="headline"><a href="sessions/{{ view.page_id }}/">{{ view.heading }}</a></p>
+    {{ byline(view, up_next.session, featured=True) }}
+  </div>
+{% endfor %}
+  {{ claim(up_next) }}
+</section>
+{% endif %}
+
+{% if upcoming %}
+<section id="upcoming" class="upcoming" aria-labelledby="upcoming-title">
+  <h2 id="upcoming-title">Upcoming</h2>
+  <ol class="ladder">
+{% for gathering in upcoming %}
+{% set new_year = loop.changed(gathering.session.day.year) %}
+{% if new_year and not loop.first %}
+    <li class="year" aria-hidden="true">{{ gathering.session.day.year }}</li>
+{% endif %}
+    <li class="rung{% if gathering.free %} is-free{% endif %}">
+      <time class="date" datetime="{{ gathering.session.day.isoformat() }}">{{ gathering.session.day|short_date }}</time>
+      <div class="what">
+{% for view in gathering.views %}
+        <p class="title"><a href="sessions/{{ view.page_id }}/">{{ view.heading }}</a></p>
+        {{ byline(view, gathering.session) }}
+{% endfor %}
+      </div>
+      {{ claim(gathering) }}
+    </li>
+{% endfor %}
+  </ol>
+  <h3>Three ways to present</h3>
+  <dl class="formats">
+{% for label, note in formats %}
+    <div><dt>{{ label }}</dt><dd>{{ note }}</dd></div>
+{% endfor %}
+  </dl>
+</section>
+{% endif %}
+
+{% if gallery %}
+<section id="gallery" class="gallery" aria-labelledby="gallery-title">
+  <h2 id="gallery-title">Recent pages</h2>
+  <ul class="shelf">
+{% for view in gallery %}
+    <li>
+      <a class="spine" href="sessions/{{ view.page_id }}/">
+        <time datetime="{{ view.day.isoformat() }}">{{ view.day|day_month }} {{ view.day.year }}</time>
+        <span class="title">{{ view.heading }}</span>
+        {% if view.presenter %}<span class="who">{{ view.presenter }}</span>{% endif %}
+      </a>
+    </li>
+{% endfor %}
+  </ul>
+{% if more %}
+  <p class="onward"><a href="library/">Every page in the library</a></p>
+{% endif %}
+</section>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,151 @@
+{% extends "base.html.j2" %}
+
+{% block title %}{{ view.heading }} | {{ settings.club_name }}{% endblock %}
+
+{% block description %}{{ view.heading }}. {{ view.day|long_date }}{% if view.presenter %}, with {{ view.presenter }}{% endif %}, at {{ settings.club_name }}.{% endblock %}
+
+{% block content %}
+{% set page = view.page %}
+{% set session = page.session %}
+{% set paper = view.paper %}
+<article class="session">
+  <header class="session-head">
+    <h1>{{ view.heading }}</h1>
+{% if paper and (paper.authors or paper.venue or paper.url) %}
+    <p class="citation">
+      {%- if paper.authors %}{{ paper.authors|authors }}. {% endif %}
+      {%- if paper.venue %}<cite>{{ paper.venue }}</cite>{% if paper.year %}, {{ paper.year }}{% endif %}. {% elif paper.year %}{{ paper.year }}. {% endif %}
+      {%- if paper.url %}<a href="{{ paper.url }}">{{ paper.url if paper.doi else paper.url|link_label }}</a>{% endif -%}
+    </p>
+{% endif %}
+    <dl class="facts">
+      <div><dt>Date</dt><dd><time datetime="{{ view.day.isoformat() }}">{{ view.day|long_date }}</time>{% if session.status == "scheduled" %}, {{ clock }}, {{ settings.room }}{% endif %}</dd></div>
+{% if view.kind == "slot" %}
+      <div><dt>Presenter</dt><dd>{{ view.presenter }}</dd></div>
+      <div><dt>Format</dt><dd>{{ view.fmt }}</dd></div>
+{% elif view.kind == "guest" and view.presenter %}
+      <div><dt>Guest</dt><dd>{{ view.presenter }}{% if view.affiliation %}, {{ view.affiliation }}{% endif %}</dd></div>
+{% endif %}
+{% if view.kind == "guest" and session.length_minutes != 60 %}
+      <div><dt>Length</dt><dd>{{ session.length_minutes }} minutes</dd></div>
+{% endif %}
+{% set slides = page.slides.link|safe_url if page.slides else None %}
+{% if slides %}
+      <div><dt>Slides</dt><dd><a href="{{ slides }}">{{ slides|link_label }}</a></dd></div>
+{% endif %}
+    </dl>
+{% if siblings %}
+    <p class="siblings">Also in this session:
+{% for other in siblings %}
+      <a href="../{{ other.page_id }}/">{{ other.heading }}</a>{% if other.presenter %}, {{ other.presenter }}{% endif %}{% if not loop.last %};{% endif %}
+
+{% endfor %}
+    </p>
+{% endif %}
+{% if session.status == "cancelled" %}
+{% if view.kind != "chat" %}
+    <p class="notice">This session was cancelled.</p>
+{% endif %}
+{% elif view.kind == "chat" and session.status == "scheduled" %}
+    <p class="lede">Bring anything you read, no slides. Or claim this Wednesday, and bring a paper you want help with, or one you want to talk about.</p>
+    <p><a class="button" href="{{ form_link(settings, 'claim', page.page_id) }}">Claim this</a></p>
+{% elif view.kind == "chat" %}
+    <p class="lede">Anyone brings something they read, and nobody needs slides.</p>
+{% elif view.kind == "guest" %}
+    <p class="lede">An open session: people from outside the lab are welcome.</p>
+{% endif %}
+  </header>
+
+{% if view.explainer %}
+  <section class="explainer" id="explainer-section" aria-label="Interactive explainer" hidden>
+    <iframe id="explainer" sandbox="allow-scripts" referrerpolicy="no-referrer" title="Interactive explainer by {{ page.explainer.name }}"></iframe>
+    <p class="credit">Interactive explainer by {{ page.explainer.name }}</p>
+  </section>
+  <script>
+    fetch("explainer.txt")
+      .then(function (r) { if (!r.ok) { throw new Error(r.status); } return r.text(); })
+      .then(function (text) {
+        document.getElementById("explainer").srcdoc = text;
+        document.getElementById("explainer-section").hidden = false;
+      })
+      .catch(function () {});
+  </script>
+{% endif %}
+
+{% if page.synthesis and (page.synthesis.text|trim or page.synthesis.link|safe_url) %}
+  <section class="prose synthesis">
+    <h2>Discussion synthesis, prepared by {{ page.synthesis.name }}</h2>
+    {{ page.synthesis.text|paragraphs }}
+{% if page.synthesis.link|safe_url %}
+    <p><a href="{{ page.synthesis.link|safe_url }}">{{ page.synthesis.link|safe_url|link_label }}</a></p>
+{% endif %}
+  </section>
+{% endif %}
+
+{% if page.connections and (page.connections.text|trim or page.connections.link|safe_url) %}
+  <section class="prose connections">
+    <h2>What it means for our work</h2>
+    {{ page.connections.text|paragraphs }}
+{% if page.connections.link|safe_url %}
+    <p><a href="{{ page.connections.link|safe_url }}">{{ page.connections.link|safe_url|link_label }}</a></p>
+{% endif %}
+    <p class="signature">{{ page.connections.name }}</p>
+  </section>
+{% endif %}
+
+{% if page.takeaways %}
+  <section class="takeaways">
+    <h2>Takeaways</h2>
+    <ul class="notes">
+{% for item in page.takeaways %}
+      <li>
+        <figure class="note">
+          <blockquote>{{ item.text|paragraphs("mark") }}</blockquote>
+          <figcaption>{{ item.name }}</figcaption>
+        </figure>
+      </li>
+{% endfor %}
+    </ul>
+  </section>
+{% endif %}
+
+{% if page.follow_ups %}
+  <section class="prose follow-ups">
+    <h2>What happened next</h2>
+    <ul class="entries">
+{% for item in page.follow_ups %}
+      <li>
+        {{ item.text|paragraphs }}
+{% if item.link|safe_url %}
+        <p><a href="{{ item.link|safe_url }}">{{ item.link|safe_url|link_label }}</a></p>
+{% endif %}
+        <p class="signature">{{ item.name }}, {{ item.submitted_at.date()|day_month }} {{ item.submitted_at.year }}</p>
+      </li>
+{% endfor %}
+    </ul>
+  </section>
+{% endif %}
+
+{% for item in page.replies %}
+  <section class="prose reply">
+    <h2>A reply from {{ item.name }}</h2>
+    {{ item.text|paragraphs }}
+{% if item.link|safe_url %}
+    <p><a href="{{ item.link|safe_url }}">{{ item.link|safe_url|link_label }}</a></p>
+{% endif %}
+    <p class="signature">{{ item.submitted_at.date()|day_month }} {{ item.submitted_at.year }}</p>
+  </section>
+{% endfor %}
+
+{% if session.status != "cancelled" %}
+  <aside class="contribute" aria-labelledby="contribute-title">
+    <img src="takeaway-qr.svg" alt="QR code that opens the takeaway form for this page" width="144" height="144">
+    <div>
+      <h2 id="contribute-title">What became clearer, changed your mind, or is still unresolved?</h2>
+      <p>Scan the code or use the button. Your takeaway appears on this page under your name within a few hours.</p>
+      <p class="actions"><a class="button" href="{{ form_link(settings, 'takeaway', page.page_id) }}">Add a takeaway</a> <a class="quiet" href="{{ form_link(settings, 'page', page.page_id) }}">Add to this page</a></p>
+    </div>
+  </aside>
+{% endif %}
+</article>
+{% endblock %}

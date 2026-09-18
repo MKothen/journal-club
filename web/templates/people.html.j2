@@ -1,0 +1,51 @@
+{% extends "base.html.j2" %}
+
+{% macro pages(views) %}
+<ul>
+{% for view in views %}
+  <li><a href="../sessions/{{ view.page_id }}/">{{ view.heading }}</a> <time datetime="{{ view.day.isoformat() }}">{{ view.day|day_month }} {{ view.day.year }}</time></li>
+{% endfor %}
+</ul>
+{% endmacro %}
+
+{% block title %}People | {{ settings.club_name }}{% endblock %}
+
+{% block description %}Who has presented at {{ settings.club_name }}, suggested a paper, or added to a page.{% endblock %}
+
+{% block content %}
+<header class="page-head">
+  <h1>People</h1>
+  <p class="lede">Everyone who has presented, suggested a paper or added to a page, in alphabetical order.</p>
+</header>
+<ul class="people">
+{% for person in people %}
+  <li>
+    <h2>{{ person.name }}</h2>
+    <dl>
+{% if person.presented %}
+      <dt>Presented</dt>
+      <dd>{{ pages(person.presented) }}</dd>
+{% endif %}
+{% if person.presenting %}
+      <dt>Presenting</dt>
+      <dd>{{ pages(person.presenting) }}</dd>
+{% endif %}
+{% if person.suggested %}
+      <dt>Suggested</dt>
+      <dd>
+        <ul>
+{% for item in person.suggested %}
+          <li>{% if item.paper and item.paper.url %}<a href="{{ item.paper.url }}">{{ item.title }}</a>{% else %}{{ item.title }}{% endif %}</li>
+{% endfor %}
+        </ul>
+      </dd>
+{% endif %}
+{% if person.added %}
+      <dt>Added to</dt>
+      <dd>{{ pages(person.added) }}</dd>
+{% endif %}
+    </dl>
+  </li>
+{% endfor %}
+</ul>
+{% endblock %}

@@ -1,0 +1,30 @@
+{% extends "base.html.j2" %}
+
+{% block title %}Wishlist | {{ settings.club_name }}{% endblock %}
+
+{% block description %}Papers people would like {{ settings.club_name }} to read.{% endblock %}
+
+{% block content %}
+<header class="page-head">
+  <h1>Wishlist</h1>
+  <p class="lede">Papers people would like the club to read. Take one to present, or tell us you would come if someone did.</p>
+  <p><a class="button" href="{{ form_link(settings, 'wishlist') }}">Suggest a paper</a></p>
+</header>
+{% if suggestions %}
+<ul class="wishes">
+{% for item in suggestions %}
+  <li>
+    <h2>{% if item.paper and item.paper.url %}<a href="{{ item.paper.url }}">{{ item.title }}</a>{% else %}{{ item.title }}{% endif %}</h2>
+{% if item.paper and (item.paper.authors or item.paper.venue) %}
+    <p class="citation">{% if item.paper.authors %}{{ item.paper.authors|authors }}. {% endif %}{% if item.paper.venue %}<cite>{{ item.paper.venue }}</cite>{% if item.paper.year %}, {{ item.paper.year }}{% endif %}.{% endif %}</p>
+{% endif %}
+{% if item.entry.why|trim %}
+    <blockquote>{{ item.entry.why|paragraphs }}</blockquote>
+{% endif %}
+    <p class="signature">Suggested by {{ item.entry.name }}{% if item.interest == 1 %}. One person would come{% elif item.interest > 1 %}. {{ item.interest }} people would come{% endif %}.</p>
+    <p><a class="quiet" href="{{ form_link(settings, 'interest') }}">I'd come</a></p>
+  </li>
+{% endfor %}
+</ul>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>{% block title %}{{ settings.club_name }}{% endblock %}</title>
+<meta name="description" content="{% block description %}{{ settings.club_name }}: bring a paper you want help with, or one you want to talk about.{% endblock %}">
+<meta property="og:site_name" content="{{ settings.club_name }}">
+<meta property="og:title" content="{{ self.title() }}">
+<meta property="og:description" content="{{ self.description() }}">
+<meta property="og:type" content="website">
+<meta property="og:url" content="{{ settings.site_base_url }}/{{ path }}">
+{% block head %}{% endblock %}
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23fcfcfa'/%3E%3Cpath d='M5 21 L27 17 L27 25 L5 27 Z' fill='%23ffe45c'/%3E%3Cpath d='M7 11h18M7 16h13' stroke='%231c2230' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="{{ root }}static/style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to the content</a>
+<header class="masthead">
+  <a class="wordmark" href="{{ root }}"{% if nav is not defined and path == "" %} aria-current="page"{% endif %}>{{ settings.club_name }}</a>
+  <nav aria-label="Site">
+    <ul>
+      <li><a href="{{ root }}library/"{% if nav == "library" %} aria-current="page"{% endif %}>Library</a></li>
+      <li><a href="{{ root }}wishlist/"{% if nav == "wishlist" %} aria-current="page"{% endif %}>Wishlist</a></li>
+      <li><a href="{{ root }}people/"{% if nav == "people" %} aria-current="page"{% endif %}>People</a></li>
+{% if has_guide %}
+      <li><a href="{{ root }}guide/"{% if nav == "guide" %} aria-current="page"{% endif %}>Guide</a></li>
+{% endif %}
+    </ul>
+  </nav>
+</header>
+<main id="main">
+{% block content %}{% endblock %}
+</main>
+<footer class="colophon">
+  <p>{{ settings.club_name }}, every other Wednesday at {{ clock }}, {{ settings.room }}.</p>
+  <p>Everything on this site was submitted through the club's form, under the name of the person who wrote it, and is public.</p>
+</footer>
+</body>
+</html>
