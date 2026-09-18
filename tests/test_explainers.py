@@ -8,9 +8,10 @@ from sync.explainers import (
     store_explainer,
 )
 
-# Source must stay ASCII-only. Build the one non-ASCII test string at
-# runtime via chr() rather than an escape sequence in a string literal.
+# Source must stay ASCII-only. Build the non-ASCII test values at runtime via
+# chr() rather than an escape sequence in a string literal.
 CAFE = "caf" + chr(0xE9)
+BACKSLASH = chr(92)
 
 
 # --- The brief's original six, unchanged ---
@@ -117,7 +118,7 @@ def test_page_id_rejects_a_trailing_newline(tmp_path):
         store_explainer(tmp_path, "2026-10-07\n", "<html></html>")
 
 
-# --- Round 1 tests rewritten for the new fetch_explainer / http_get_text split ---
+# --- Round 1 tests rewritten for the round 2 fetch_explainer / http_get_text split ---
 #
 # fetch_explainer no longer takes a resolver: host safety moved entirely into
 # http_get_text, so these now call fetch_explainer with only a stub `fetch`
@@ -140,7 +141,7 @@ def test_google_accounts_signin_text_is_rejected():
         fetch_explainer("https://drive.google.com/test", fake_fetch)
 
 
-# --- check_host: fail-closed cases the round 2 review added ---
+# --- check_host: fail-closed cases ---
 
 
 def test_check_host_blocks_shared_address_space():
@@ -161,9 +162,36 @@ def test_check_host_blocks_an_empty_resolver_result():
         check_host("https://ghost.example/test", fake_resolver)
 
 
+def test_check_host_blocks_multicast_addresses():
+    # 224.0.0.1's is_global is True in Python's ipaddress module (multicast
+    # is not classified as private/reserved), so is_global alone lets it
+    # through; is_multicast must be checked separately.
+    def fake_resolver(host, port):
+        return [(2, 1, 6, "", ("224.0.0.1", 0))]
+
+    with pytest.raises(ExplainerError, match="private or reserved"):
+        check_host("https://multicast.example/test", fake_resolver)
+
+
+def test_a_too_long_host_label_is_rejected_as_an_explainer_error():
+    # getaddrinfo's own IDNA validation rejects a label over 63 octets with
+    # UnicodeError, entirely locally: no network lookup is attempted, so this
+    # is safe to run against the real default resolver.
+    long_host = "a" * 64 + ".example.com"
+
+    def fake_send(prepared, stream, timeout, allow_redirects):
+        raise AssertionError("send must not be called: the host check must reject first")
+
+    with pytest.raises(ExplainerError, match="could not be resolved"):
+        http_get_text(f"https://{long_host}/x", send=fake_send)
+
+
 # --- http_get_text: the production fetcher, redirects, hosts, encoding ---
 #
-# Every test here injects both `get` and `resolver`; none touches the network.
+# Every test here injects both `resolver` and `send`; none touches the
+# network. `send` receives the actually-prepared request (requests.Request
+# (...).prepare() runs for real -- it is pure local URL/header construction,
+# no I/O), so stubs key off `prepared.url` rather than a raw url argument.
 
 
 def test_a_redirect_to_a_public_host_is_followed():
@@ -186,16 +214,16 @@ def test_a_redirect_to_a_public_host_is_followed():
 
     calls = []
 
-    def fake_get(url, stream, timeout, allow_redirects):
-        calls.append(url)
-        if url == "https://start.example/x":
+    def fake_send(prepared, stream, timeout, allow_redirects):
+        calls.append(prepared.url)
+        if prepared.url == "https://start.example/x":
             return RedirectResponse()
         return FinalResponse()
 
     def fake_resolver(host, port):
         return [(2, 1, 6, "", ("8.8.8.8", 0))]
 
-    result = http_get_text("https://start.example/x", fake_get, fake_resolver)
+    result = http_get_text("https://start.example/x", fake_resolver, fake_send)
     assert result == "<html>final</html>"
     assert calls == ["https://start.example/x", "https://cdn.example/final.html"]
 
@@ -218,16 +246,16 @@ def test_a_relative_redirect_location_is_resolved_against_the_current_url():
         def close(self):
             pass
 
-    def fake_get(url, stream, timeout, allow_redirects):
-        if url == "https://start.example/dir/x":
+    def fake_send(prepared, stream, timeout, allow_redirects):
+        if prepared.url == "https://start.example/dir/x":
             return RedirectResponse()
-        assert url == "https://start.example/final.html"
+        assert prepared.url == "https://start.example/final.html"
         return FinalResponse()
 
     def fake_resolver(host, port):
         return [(2, 1, 6, "", ("8.8.8.8", 0))]
 
-    result = http_get_text("https://start.example/dir/x", fake_get, fake_resolver)
+    result = http_get_text("https://start.example/dir/x", fake_resolver, fake_send)
     assert result == "<html>ok</html>"
 
 
@@ -241,8 +269,8 @@ def test_a_redirect_to_a_metadata_address_is_rejected_before_the_hop_is_fetched(
 
     calls = []
 
-    def fake_get(url, stream, timeout, allow_redirects):
-        calls.append(url)
+    def fake_send(prepared, stream, timeout, allow_redirects):
+        calls.append(prepared.url)
         return RedirectResponse()
 
     def fake_resolver(host, port):
@@ -251,7 +279,7 @@ def test_a_redirect_to_a_metadata_address_is_rejected_before_the_hop_is_fetched(
         return [(2, 1, 6, "", ("8.8.8.8", 0))]
 
     with pytest.raises(ExplainerError, match="private or reserved"):
-        http_get_text("https://start.example/x", fake_get, fake_resolver)
+        http_get_text("https://start.example/x", fake_resolver, fake_send)
     assert calls == ["https://start.example/x"]
 
 
@@ -263,14 +291,14 @@ def test_a_redirect_to_an_http_url_is_rejected():
         def close(self):
             pass
 
-    def fake_get(url, stream, timeout, allow_redirects):
+    def fake_send(prepared, stream, timeout, allow_redirects):
         return RedirectResponse()
 
     def fake_resolver(host, port):
         return [(2, 1, 6, "", ("8.8.8.8", 0))]
 
     with pytest.raises(ExplainerError, match="https"):
-        http_get_text("https://start.example/x", fake_get, fake_resolver)
+        http_get_text("https://start.example/x", fake_resolver, fake_send)
 
 
 def test_a_fourth_redirect_is_rejected():
@@ -291,18 +319,70 @@ def test_a_fourth_redirect_is_rejected():
         def close(self):
             pass
 
-    def fake_get(url, stream, timeout, allow_redirects):
-        idx = urls.index(url)
+    def fake_send(prepared, stream, timeout, allow_redirects):
+        idx = urls.index(prepared.url)
         return RedirectResponse(urls[idx + 1])
 
     def fake_resolver(host, port):
         return [(2, 1, 6, "", ("8.8.8.8", 0))]
 
     with pytest.raises(ExplainerError, match="too many redirects"):
-        http_get_text(urls[0], fake_get, fake_resolver)
+        http_get_text(urls[0], fake_resolver, fake_send)
 
 
-def test_a_final_host_of_accounts_google_com_is_rejected():
+def test_exactly_three_redirects_then_success_is_allowed():
+    # Pins the cap at three: a regression that quietly tightened it to two
+    # would only show up here, not in the fourth-redirect test above.
+    urls = [
+        "https://start.example/1",
+        "https://start.example/2",
+        "https://start.example/3",
+        "https://start.example/4",
+    ]
+
+    class RedirectResponse:
+        status_code = 302
+
+        def __init__(self, location):
+            self.headers = {"Location": location}
+
+        def close(self):
+            pass
+
+    class FinalResponse:
+        status_code = 200
+        headers = {"content-type": "text/html"}
+
+        def iter_content(self, chunk_size):
+            yield b"<html>done</html>"
+
+        def close(self):
+            pass
+
+    def fake_send(prepared, stream, timeout, allow_redirects):
+        idx = urls.index(prepared.url)
+        if idx < len(urls) - 1:
+            return RedirectResponse(urls[idx + 1])
+        return FinalResponse()
+
+    def fake_resolver(host, port):
+        return [(2, 1, 6, "", ("8.8.8.8", 0))]
+
+    result = http_get_text(urls[0], fake_resolver, fake_send)
+    assert result == "<html>done</html>"
+
+
+def test_a_drive_link_redirecting_to_google_signin_is_rejected():
+    # The final-host check has to see the host actually reached after
+    # following redirects, not the submitted URL: a Drive download link
+    # commonly redirects to accounts.google.com when sharing is not public.
+    class RedirectResponse:
+        status_code = 302
+        headers = {"Location": "https://accounts.google.com/signin?continue=x"}
+
+        def close(self):
+            pass
+
     class FinalResponse:
         status_code = 200
         headers = {"content-type": "text/html"}
@@ -313,14 +393,20 @@ def test_a_final_host_of_accounts_google_com_is_rejected():
         def close(self):
             pass
 
-    def fake_get(url, stream, timeout, allow_redirects):
+    def fake_send(prepared, stream, timeout, allow_redirects):
+        if prepared.url.startswith("https://drive.google.com"):
+            return RedirectResponse()
         return FinalResponse()
 
     def fake_resolver(host, port):
         return [(2, 1, 6, "", ("142.251.32.14", 0))]
 
     with pytest.raises(ExplainerError, match="sign-in"):
-        http_get_text("https://accounts.google.com/signin", fake_get, fake_resolver)
+        http_get_text(
+            "https://drive.google.com/uc?export=download&id=ABC123",
+            fake_resolver,
+            fake_send,
+        )
 
 
 def test_non_2xx_final_status_is_rejected():
@@ -331,14 +417,14 @@ def test_non_2xx_final_status_is_rejected():
         def close(self):
             pass
 
-    def fake_get(url, stream, timeout, allow_redirects):
+    def fake_send(prepared, stream, timeout, allow_redirects):
         return ErrorResponse()
 
     def fake_resolver(host, port):
         return [(2, 1, 6, "", ("8.8.8.8", 0))]
 
     with pytest.raises(ExplainerError, match="404"):
-        http_get_text("https://start.example/missing", fake_get, fake_resolver)
+        http_get_text("https://start.example/missing", fake_resolver, fake_send)
 
 
 def test_streaming_stops_when_size_exceeded():
@@ -356,14 +442,107 @@ def test_streaming_stops_when_size_exceeded():
         def close(self):
             pass
 
-    def fake_get(url, stream, timeout, allow_redirects):
+    def fake_send(prepared, stream, timeout, allow_redirects):
         return FinalResponse()
 
     def fake_resolver(host, port):
         return [(2, 1, 6, "", ("8.8.8.8", 0))]
 
     with pytest.raises(ExplainerError, match="large"):
-        http_get_text("https://start.example/big", fake_get, fake_resolver)
+        http_get_text("https://start.example/big", fake_resolver, fake_send)
+
+
+# --- Link-shape rejection: the host you check must be the host you connect to ---
+
+
+def test_a_redirect_location_with_a_backslash_is_rejected_before_the_hop_is_fetched():
+    # urllib.parse reads the text after "@" as the host here, but requests
+    # (through urllib3) connects to the address before the backslash. Refuse
+    # the shape outright rather than rely on parser agreement.
+    location = "https://169.254.169.254" + BACKSLASH + "@public.example/"
+
+    class RedirectResponse:
+        status_code = 302
+        headers = {"Location": location}
+
+        def close(self):
+            pass
+
+    calls = []
+
+    def fake_send(prepared, stream, timeout, allow_redirects):
+        calls.append(prepared.url)
+        return RedirectResponse()
+
+    def fake_resolver(host, port):
+        return [(2, 1, 6, "", ("8.8.8.8", 0))]
+
+    with pytest.raises(ExplainerError, match="backslash"):
+        http_get_text("https://start.example/x", fake_resolver, fake_send)
+    assert calls == ["https://start.example/x"]
+
+
+def test_a_redirect_location_with_user_info_is_rejected():
+    class RedirectResponse:
+        status_code = 302
+        headers = {"Location": "https://user@host.example/path"}
+
+        def close(self):
+            pass
+
+    def fake_send(prepared, stream, timeout, allow_redirects):
+        return RedirectResponse()
+
+    def fake_resolver(host, port):
+        return [(2, 1, 6, "", ("8.8.8.8", 0))]
+
+    with pytest.raises(ExplainerError, match="user info"):
+        http_get_text("https://start.example/x", fake_resolver, fake_send)
+
+
+def test_an_idna_host_is_checked_by_its_punycode_form():
+    # urlparse().hostname would return the raw label here; requests encodes
+    # it to xn--strae-oqa.example before connecting. The resolver must see
+    # the same form requests will actually dial.
+    seen_hosts = []
+
+    def fake_resolver(host, port):
+        seen_hosts.append(host)
+        return [(2, 1, 6, "", ("10.0.0.1", 0))]  # private: must be rejected
+
+    def fake_send(prepared, stream, timeout, allow_redirects):
+        raise AssertionError("send must not be called: the host check must reject first")
+
+    url = "https://stra" + chr(0xDF) + "e.example/"
+
+    with pytest.raises(ExplainerError, match="private or reserved"):
+        http_get_text(url, fake_resolver, fake_send)
+    assert len(seen_hosts) == 1
+    assert seen_hosts[0].startswith("xn--")
+
+
+def test_a_malformed_redirect_target_is_rejected_as_an_explainer_error():
+    # urljoin raises ValueError on this malformed IPv6-looking target; any
+    # such parse failure must still surface as ExplainerError, since a later
+    # sync step catches only that type.
+    class RedirectResponse:
+        status_code = 302
+        headers = {"Location": "https://[169.254/x"}
+
+        def close(self):
+            pass
+
+    def fake_send(prepared, stream, timeout, allow_redirects):
+        return RedirectResponse()
+
+    def fake_resolver(host, port):
+        return [(2, 1, 6, "", ("8.8.8.8", 0))]
+
+    with pytest.raises(ExplainerError, match="could not be fetched"):
+        http_get_text("https://start.example/x", fake_resolver, fake_send)
+
+
+# --- Decoding: never raise anything but the caller's own errors ---
 
 
 def test_declared_charset_used_when_present_otherwise_utf8():
@@ -383,13 +562,13 @@ def test_declared_charset_used_when_present_otherwise_utf8():
         def close(self):
             pass
 
-    def fake_get(url, stream, timeout, allow_redirects):
+    def fake_send(prepared, stream, timeout, allow_redirects):
         return FinalResponse()
 
     def fake_resolver(host, port):
         return [(2, 1, 6, "", ("8.8.8.8", 0))]
 
-    result = http_get_text("https://start.example/accent", fake_get, fake_resolver)
+    result = http_get_text("https://start.example/accent", fake_resolver, fake_send)
     assert result == CAFE
 
 
@@ -404,13 +583,13 @@ def test_an_unknown_declared_charset_falls_back_to_utf8_instead_of_raising():
         def close(self):
             pass
 
-    def fake_get(url, stream, timeout, allow_redirects):
+    def fake_send(prepared, stream, timeout, allow_redirects):
         return FinalResponse()
 
     def fake_resolver(host, port):
         return [(2, 1, 6, "", ("8.8.8.8", 0))]
 
-    result = http_get_text("https://start.example/bogus-charset", fake_get, fake_resolver)
+    result = http_get_text("https://start.example/bogus-charset", fake_resolver, fake_send)
     assert result == CAFE
 
 
@@ -425,12 +604,104 @@ def test_an_invalid_utf8_byte_is_replaced_instead_of_raising():
         def close(self):
             pass
 
-    def fake_get(url, stream, timeout, allow_redirects):
+    def fake_send(prepared, stream, timeout, allow_redirects):
         return FinalResponse()
 
     def fake_resolver(host, port):
         return [(2, 1, 6, "", ("8.8.8.8", 0))]
 
-    result = http_get_text("https://start.example/badbytes", fake_get, fake_resolver)
+    result = http_get_text("https://start.example/badbytes", fake_resolver, fake_send)
     assert "<html>" in result
     assert "broken</html>" in result
+
+
+def test_a_base64_declared_charset_falls_back_to_utf8():
+    # codecs.lookup("base64") would succeed; bytes.decode("base64") itself
+    # raises LookupError ("not a text encoding"). The fallback must catch
+    # that, not just an unrecognised name.
+    class FinalResponse:
+        status_code = 200
+        headers = {"content-type": "text/html; charset=base64"}
+
+        def iter_content(self, chunk_size):
+            yield CAFE.encode("utf-8")
+
+        def close(self):
+            pass
+
+    def fake_send(prepared, stream, timeout, allow_redirects):
+        return FinalResponse()
+
+    def fake_resolver(host, port):
+        return [(2, 1, 6, "", ("8.8.8.8", 0))]
+
+    result = http_get_text("https://start.example/base64-charset", fake_resolver, fake_send)
+    assert result == CAFE
+
+
+def test_an_idna_declared_charset_falls_back_to_utf8():
+    # bytes.decode("idna") raises UnicodeError ("unsupported error handling
+    # replace"), not LookupError.
+    class FinalResponse:
+        status_code = 200
+        headers = {"content-type": "text/html; charset=idna"}
+
+        def iter_content(self, chunk_size):
+            yield CAFE.encode("utf-8")
+
+        def close(self):
+            pass
+
+    def fake_send(prepared, stream, timeout, allow_redirects):
+        return FinalResponse()
+
+    def fake_resolver(host, port):
+        return [(2, 1, 6, "", ("8.8.8.8", 0))]
+
+    result = http_get_text("https://start.example/idna-charset", fake_resolver, fake_send)
+    assert result == CAFE
+
+
+def test_a_punycode_declared_charset_falls_back_to_utf8():
+    # bytes.decode("punycode") ASCII-decodes internally before the bootstring
+    # step; any non-ASCII byte (CAFE's UTF-8 form has one) raises
+    # UnicodeDecodeError.
+    class FinalResponse:
+        status_code = 200
+        headers = {"content-type": "text/html; charset=punycode"}
+
+        def iter_content(self, chunk_size):
+            yield CAFE.encode("utf-8")
+
+        def close(self):
+            pass
+
+    def fake_send(prepared, stream, timeout, allow_redirects):
+        return FinalResponse()
+
+    def fake_resolver(host, port):
+        return [(2, 1, 6, "", ("8.8.8.8", 0))]
+
+    result = http_get_text("https://start.example/punycode-charset", fake_resolver, fake_send)
+    assert result == CAFE
+
+
+def test_a_nul_byte_in_the_declared_charset_falls_back_to_utf8():
+    class FinalResponse:
+        status_code = 200
+        headers = {"content-type": "text/html; charset=utf-8" + chr(0)}
+
+        def iter_content(self, chunk_size):
+            yield CAFE.encode("utf-8")
+
+        def close(self):
+            pass
+
+    def fake_send(prepared, stream, timeout, allow_redirects):
+        return FinalResponse()
+
+    def fake_resolver(host, port):
+        return [(2, 1, 6, "", ("8.8.8.8", 0))]
+
+    result = http_get_text("https://start.example/nul-charset", fake_resolver, fake_send)
+    assert result == CAFE
