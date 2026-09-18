@@ -12,7 +12,7 @@ import requests
 # a heading, a quote, a table or raw HTML. The backslash is escaped too, so a
 # typed backslash cannot undo the escape that follows it.
 MARKDOWN_CHARACTERS = frozenset("\\`*_~[]()#>|!<")
-ZERO_WIDTH_SPACE = "​"
+ZERO_WIDTH_SPACE = chr(0x200B)
 
 
 def neutral(text: str) -> str:
