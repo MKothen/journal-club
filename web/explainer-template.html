@@ -1,0 +1,357 @@
+<!doctype html>
+<!--
+  Explainer starter for the journal club.
+
+  How to use it
+  1. Replace every [bracketed] phrase in the page with your own words.
+  2. Put the paper's model in section 1 of the script at the bottom,
+     and the paper's result in section 2.
+  3. Open this file in a browser with your network switched off.
+     If it still works, nothing it needs lives on another site.
+
+  What the site needs from this file
+  - One self-contained HTML file: styles, scripts and data all live in it.
+  - Ideally under 2 MB. The sync does not copy a file over 10 MB.
+  - No requests to other sites. Inline any library you use.
+  - No localStorage, sessionStorage, IndexedDB or cookies. The page runs
+    in a sandboxed frame with no origin, where all of them fail.
+  - No pop-ups, new tabs, alert boxes or forms. The frame blocks them.
+  - Keep the doctype line first. The sync checks that the file starts
+    like a web page.
+
+  Before you share it, the fidelity check: does the figure faithfully
+  show what the paper found?
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>[Short title of the paper]</title>
+<style>
+  /* The site's palette and type, so the explainer sits in its page. */
+  :root {
+    --paper: #fcfcfa;
+    --ink: #1c2230;
+    --ink-soft: #5a6171;
+    --rule: #dde0e6;
+    --pen: #2b4a9c;
+    --marker: #ffec6e;
+    --panel: #f3f4f1;
+    --serif: Charter, "Bitstream Charter", "Sitka Text", Cambria, "Iowan Old Style", Georgia, serif;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    color-scheme: light dark;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #15181d;
+      --ink: #e4e6eb;
+      --ink-soft: #9ea5b1;
+      --rule: #2c323c;
+      --pen: #a9bcff;
+      --marker: rgba(255, 224, 80, 0.3);
+      --panel: #1c2027;
+    }
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    padding: 1.25rem 1.25rem 1.5rem;
+    background: var(--paper);
+    color: var(--ink);
+    font: 1.0625rem/1.6 var(--serif);
+  }
+
+  main { max-width: 40rem; margin: 0 auto; }
+
+  h1 {
+    margin: 0 0 0.5rem;
+    font-size: 1.45rem;
+    font-weight: 600;
+    line-height: 1.2;
+    text-wrap: balance;
+  }
+
+  .lede { margin: 0 0 1.25rem; color: var(--ink-soft); }
+
+  /* -- the figure ---------------------------------------------------- */
+
+  figure { margin: 0; }
+  svg { display: block; width: 100%; height: auto; overflow: visible; }
+
+  .frame { fill: none; stroke: var(--rule); }
+  .grid { stroke: var(--rule); stroke-width: 1; }
+  .tick { fill: var(--ink-soft); font: 12px var(--sans); }
+  .axis-label { fill: var(--ink); font: 13px var(--sans); }
+  .model { fill: none; stroke: var(--pen); stroke-width: 2.5; stroke-linejoin: round; }
+  .paper-point { fill: var(--ink); stroke: var(--paper); stroke-width: 1.5; }
+
+  figcaption {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 1.25rem;
+    margin-top: 0.4rem;
+    color: var(--ink-soft);
+    font: 0.88rem/1.45 var(--sans);
+  }
+  .key { display: inline-block; margin-right: 0.4rem; vertical-align: middle; }
+  .key-model { width: 1.25rem; height: 0; border-top: 2.5px solid var(--pen); }
+  .key-paper { width: 0.55rem; height: 0.55rem; border-radius: 50%; background: var(--ink); }
+
+  /* -- the control --------------------------------------------------- */
+
+  .control {
+    margin-top: 1.25rem;
+    padding: 0.9rem 1rem 0.75rem;
+    border-radius: 6px;
+    background: var(--panel);
+    font-family: var(--sans);
+  }
+  .control label {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    font-size: 0.95rem;
+  }
+  .control output { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .control input { display: block; width: 100%; margin: 0.6rem 0 0.2rem; accent-color: var(--pen); }
+  .range {
+    display: flex;
+    justify-content: space-between;
+    color: var(--ink-soft);
+    font-size: 0.8rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .readout, .source, .error { font: 0.92rem/1.45 var(--sans); }
+  .readout { margin: 0.9rem 0 0; }
+  .readout strong { font-variant-numeric: tabular-nums; }
+  .source { margin: 1.25rem 0 0; color: var(--ink-soft); }
+  .error {
+    margin: 1rem 0 0;
+    padding: 0.6rem 0.8rem;
+    border-left: 3px solid var(--pen);
+    background: var(--panel);
+  }
+
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <h1>[The question the paper tries to settle, in one line]</h1>
+  <p class="lede">[One or two sentences: what the model receives, what it predicts, and which result to look at first.]</p>
+
+  <figure>
+    <svg id="figure" viewBox="0 0 640 360" role="img" aria-labelledby="figure-title figure-desc">
+      <title id="figure-title">[What the figure shows]</title>
+      <desc id="figure-desc"></desc>
+    </svg>
+    <figcaption>
+      <span><span class="key key-model" aria-hidden="true"></span>The model, at the value you set</span>
+      <span><span class="key key-paper" aria-hidden="true"></span><span id="paper-label"></span></span>
+    </figcaption>
+  </figure>
+
+  <div class="control">
+    <label for="parameter"><span id="parameter-name"></span><output id="parameter-value" for="parameter"></output></label>
+    <input id="parameter" type="range">
+    <div class="range" aria-hidden="true"><span id="range-min"></span><span id="range-max"></span></div>
+  </div>
+
+  <p class="readout" id="readout">Root-mean-square gap between the model and the paper's points: <strong id="gap"></strong></p>
+  <p class="error" id="error" role="alert" hidden></p>
+
+  <p class="source">Source: [Authors, year, journal, DOI], figure [n].</p>
+</main>
+
+<script>
+"use strict";
+
+/* ====================================================================
+   1. THE MODEL
+   Replace `output` with the paper's model. It receives one x value and
+   the slider's current value, and returns the y value to draw.
+
+   Give the slider the range the paper actually tested, and start it
+   at the paper's own value. Set the axes to match the paper's figure,
+   so the two can be compared by eye.
+   ==================================================================== */
+const MODEL = {
+  parameter: { name: "Time constant", unit: "ms", min: 5, max: 60, step: 1, start: 20 },
+  x: { label: "Time after the pulse (ms)", min: 0, max: 100 },
+  y: { label: "Response, normalised", min: 0, max: 1 },
+  output(x, tau) {
+    // Example only: a response that decays exponentially with time constant tau.
+    return Math.exp(-x / tau);
+  },
+};
+
+/* ====================================================================
+   2. THE PAPER'S RESULT
+   Replace these points with the values the paper reports, read off its
+   figure or taken from its tables, as [x, y] pairs. Change the label to
+   say where they come from. An empty list hides the points and the gap.
+
+   The example points below are made up. They are not from any paper.
+   ==================================================================== */
+const PAPER = {
+  label: "Example points, not from any paper",
+  points: [[0, 1.0], [10, 0.63], [20, 0.35], [30, 0.23], [40, 0.15], [60, 0.06], [80, 0.02]],
+};
+
+/* ====================================================================
+   3. DRAWING
+   You should rarely need to change anything below this line.
+   ==================================================================== */
+const SVG = "http://www.w3.org/2000/svg";
+const WIDTH = 640;
+const HEIGHT = 360;
+const MARGIN = { top: 12, right: 16, bottom: 56, left: 64 };
+const SAMPLES = 240;
+
+const figure = document.getElementById("figure");
+const slider = document.getElementById("parameter");
+const shown = document.getElementById("parameter-value");
+const errorBox = document.getElementById("error");
+
+function showError(message) {
+  errorBox.textContent = "Something in the script failed: " + message;
+  errorBox.hidden = false;
+}
+
+// Inside the site's frame the browser console is hard to reach, so an
+// error is shown on the page instead.
+window.addEventListener("error", function (event) { showError(event.message); });
+
+function draw(name, attributes, parent) {
+  const node = document.createElementNS(SVG, name);
+  for (const key in attributes) node.setAttribute(key, attributes[key]);
+  (parent || figure).appendChild(node);
+  return node;
+}
+
+function sx(x) {
+  const span = MODEL.x.max - MODEL.x.min;
+  return MARGIN.left + (x - MODEL.x.min) / span * (WIDTH - MARGIN.left - MARGIN.right);
+}
+
+function sy(y) {
+  const span = MODEL.y.max - MODEL.y.min;
+  return HEIGHT - MARGIN.bottom - (y - MODEL.y.min) / span * (HEIGHT - MARGIN.top - MARGIN.bottom);
+}
+
+// Round tick steps of 1, 2 or 5 times a power of ten, about `count` of them.
+function ticks(min, max, count) {
+  const rough = (max - min) / count;
+  const power = Math.pow(10, Math.floor(Math.log10(rough)));
+  const step = [1, 2, 5, 10].map(function (f) { return f * power; })
+    .find(function (s) { return s >= rough; });
+  const decimals = Math.max(0, -Math.floor(Math.log10(step) + 1e-9));
+  const values = [];
+  for (let i = Math.ceil(min / step - 1e-9); i * step <= max + step * 1e-9; i++) {
+    values.push(i * step);
+  }
+  return values.map(function (v) { return { value: v, text: v.toFixed(decimals) }; });
+}
+
+function drawAxes() {
+  const left = MARGIN.left;
+  const right = WIDTH - MARGIN.right;
+  const top = MARGIN.top;
+  const bottom = HEIGHT - MARGIN.bottom;
+
+  ticks(MODEL.x.min, MODEL.x.max, 6).forEach(function (t) {
+    draw("line", { class: "grid", x1: sx(t.value), x2: sx(t.value), y1: top, y2: bottom });
+    draw("text", { class: "tick", x: sx(t.value), y: bottom + 18, "text-anchor": "middle" })
+      .textContent = t.text;
+  });
+  ticks(MODEL.y.min, MODEL.y.max, 5).forEach(function (t) {
+    draw("line", { class: "grid", x1: left, x2: right, y1: sy(t.value), y2: sy(t.value) });
+    draw("text", { class: "tick", x: left - 8, y: sy(t.value) + 4, "text-anchor": "end" })
+      .textContent = t.text;
+  });
+  draw("rect", { class: "frame", x: left, y: top, width: right - left, height: bottom - top });
+
+  draw("text", { class: "axis-label", x: (left + right) / 2, y: HEIGHT - 12, "text-anchor": "middle" })
+    .textContent = MODEL.x.label;
+  const middle = (top + bottom) / 2;
+  draw("text", { class: "axis-label", x: 16, y: middle, "text-anchor": "middle",
+                 transform: "rotate(-90 16 " + middle + ")" })
+    .textContent = MODEL.y.label;
+
+  // Keep the model's curve inside the plot when it runs off the axes.
+  const clip = draw("clipPath", { id: "plot-area" });
+  draw("rect", { x: left, y: top, width: right - left, height: bottom - top }, clip);
+}
+
+function drawPaper() {
+  PAPER.points.forEach(function (point) {
+    draw("circle", { class: "paper-point", cx: sx(point[0]), cy: sy(point[1]), r: 4.5 });
+  });
+}
+
+function curve(p) {
+  const parts = [];
+  for (let i = 0; i <= SAMPLES; i++) {
+    const x = MODEL.x.min + (MODEL.x.max - MODEL.x.min) * i / SAMPLES;
+    const y = MODEL.output(x, p);
+    if (Number.isFinite(y)) parts.push((parts.length ? "L" : "M") + sx(x).toFixed(1) + " " + sy(y).toFixed(1));
+  }
+  return parts.join(" ");
+}
+
+function gap(p) {
+  const squares = PAPER.points.map(function (point) {
+    const difference = MODEL.output(point[0], p) - point[1];
+    return difference * difference;
+  });
+  return Math.sqrt(squares.reduce(function (a, b) { return a + b; }, 0) / squares.length);
+}
+
+function setUp() {
+  const parameter = MODEL.parameter;
+  slider.min = parameter.min;
+  slider.max = parameter.max;
+  slider.step = parameter.step;
+  slider.value = parameter.start;
+  document.getElementById("parameter-name").textContent = parameter.name;
+  document.getElementById("range-min").textContent = parameter.min + " " + parameter.unit;
+  document.getElementById("range-max").textContent = parameter.max + " " + parameter.unit;
+  document.getElementById("paper-label").textContent = PAPER.label;
+
+  const hasPaper = PAPER.points.length > 0;
+  document.getElementById("paper-label").parentNode.hidden = !hasPaper;
+  document.getElementById("readout").hidden = !hasPaper;
+
+  drawAxes();
+  const line = draw("path", { class: "model", "clip-path": "url(#plot-area)" });
+  if (hasPaper) drawPaper();
+
+  function update() {
+    const p = Number(slider.value);
+    const value = p + " " + parameter.unit;
+    line.setAttribute("d", curve(p));
+    shown.textContent = value;
+    slider.setAttribute("aria-valuetext", value);
+    document.getElementById("figure-desc").textContent =
+      "The model's curve with " + parameter.name.toLowerCase() + " at " + value +
+      (hasPaper ? ", drawn over the paper's points." : ".");
+    if (hasPaper) document.getElementById("gap").textContent = gap(p).toFixed(3);
+  }
+
+  slider.addEventListener("input", update);
+  update();
+}
+
+try {
+  setUp();
+} catch (error) {
+  showError(error.message);
+}
+</script>
+</body>
+</html>
