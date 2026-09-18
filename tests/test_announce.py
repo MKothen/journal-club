@@ -104,7 +104,14 @@ def test_unclaimed_session_never_reposts_superseded_windows():
     # Later run on Wednesday should post Wednesday, never Friday
     found = due(at(7, 9), [SESSION], [], log, settings())
     assert [a.kind for a in found] == ["wednesday"]
-    assert "friday" not in [a.kind for a in found]
+
+    # Log Wednesday
+    mark_sending(log, found[0])
+    mark_sent(log, found[0])
+
+    # Final run should return nothing
+    found = due(at(7, 10), [SESSION], [], log, settings())
+    assert found == []
 
 
 def test_monday_text_does_not_say_tomorrow():
@@ -116,21 +123,32 @@ def test_monday_text_does_not_say_tomorrow():
 
 
 def test_monday_text_has_correct_format():
-    """Monday text should have unpadded day number."""
+    """Monday text should have unpadded day number and start with 'This Wednesday'."""
     found = due(at(5, 9), [SESSION], [SLOT], {}, settings())
     assert found[0].kind == "monday"
-    # Day 7 should appear as "7 October", not "07 October"
-    assert "7 October" in found[0].text
+    # Text should start with "This Wednesday" followed by unpadded day
+    assert found[0].text.startswith("This Wednesday, 7 October")
 
 
-def test_superseded_returns_opened_windows_not_latest():
+def test_wednesday_text_starts_with_today():
+    """Wednesday message should start with 'Today'."""
+    found = due(at(7, 9), [SESSION], [SLOT], {}, settings())
+    assert found[0].kind == "wednesday"
+    assert found[0].text.startswith("Today")
+
+
+def test_superseded_returns_opened_windows_not_latest_unclaimed():
     """Superseded should return keys of windows that have opened but are not the latest and not logged."""
     # At Wednesday 09:00, all three windows have opened (with unclaimed session)
     skipped = superseded(at(7, 9), [SESSION], [], {}, settings())
     # Friday and Monday have opened but Wednesday is the latest
-    assert "2026-10-07:friday" in skipped
-    assert "2026-10-07:monday" in skipped
-    assert "2026-10-07:wednesday" not in skipped  # This is the latest
+    assert skipped == ["2026-10-07:friday", "2026-10-07:monday"]
+
+
+def test_superseded_returns_opened_windows_not_latest_claimed():
+    """For claimed session, only Monday is superseded, not Friday."""
+    skipped = superseded(at(7, 9), [SESSION], [SLOT], {}, settings())
+    assert skipped == ["2026-10-07:monday"]
 
 
 def test_superseded_excludes_logged_windows():
@@ -138,12 +156,31 @@ def test_superseded_excludes_logged_windows():
     log = {"2026-10-07:monday": {"state": "sent", "at": "..."}}
     skipped = superseded(at(7, 9), [SESSION], [], log, settings())
     # Monday was already logged, so only Friday should be superseded
-    assert "2026-10-07:friday" in skipped
-    assert "2026-10-07:monday" not in skipped
+    assert skipped == ["2026-10-07:friday"]
 
 
-def test_superseded_for_unclaimed_session_includes_friday():
-    """For unclaimed session, Friday window should be included in superseded."""
-    skipped = superseded(at(7, 9), [SESSION], [], {}, settings())
-    assert "2026-10-07:friday" in skipped
-    assert "2026-10-07:monday" in skipped
+def test_superseded_skips_cancelled_session():
+    """Cancelled session should return no superseded windows."""
+    cancelled = Session(day=date(2026, 10, 7), kind="regular", status="cancelled")
+    skipped = superseded(at(7, 9), [cancelled], [], {}, settings())
+    assert skipped == []
+
+
+def test_superseded_skips_started_session():
+    """Session that has already started should return no superseded windows."""
+    skipped = superseded(at(7, 12), [SESSION], [], {}, settings())
+    assert skipped == []
+
+
+def test_friday_not_posted_after_monday_logged():
+    """Friday should never post once Monday (a newer window) is logged."""
+    log = {}
+    # Monday is sent on Monday 09:00
+    found = due(at(5, 9), [SESSION], [], log, settings())
+    assert [a.kind for a in found] == ["monday"]
+    mark_sending(log, found[0])
+    mark_sent(log, found[0])
+
+    # Later run on Monday afternoon should return nothing
+    found = due(at(5, 12), [SESSION], [], log, settings())
+    assert found == []
