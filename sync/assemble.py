@@ -19,7 +19,7 @@ from sync.claims import Rejection, next_id, resolve_claims
 from sync.config import session_start
 from sync.contributions import attach, pending
 from sync.model import Contribution, Page, Session, Slot
-from sync.schedule import generate_sessions
+from sync.schedule import generate_sessions, off_grid
 from sync.sheet import SheetData
 
 # How a contribution is named in a problem report.
@@ -82,6 +82,14 @@ def build_pages(data: SheetData, assigned: dict[str, str], now: datetime,
         for row in sorted(data.contributions, key=lambda r: r.submitted_at)
         if row.page_id not in built.pages
     ]
+    for tab, days in (("Skipped weeks", data.skipped), ("Session status", data.status),
+                      ("Open sessions", data.open_sessions)):
+        built.problems += [
+            f"{tab} lists {day.isoformat()}, which is not a session date: sessions fall "
+            f"every other Wednesday from {data.settings.first_session.isoformat()}. "
+            "The row has no effect."
+            for day in off_grid(days, data.settings, now.date())
+        ]
 
     # Held is a session's status (spec 4.4), so a takeaway on one short slot
     # marks every page of that session held, and the schedule says so too.

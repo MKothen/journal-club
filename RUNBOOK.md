@@ -177,7 +177,7 @@ A claim row you fix counts from its own Timestamp, but it never takes a session 
 - Type dates as `YYYY-MM-DD`.
 - Action, format and part cells must hold one of the form's options as the form wrote them.
 - **Session status** takes only `cancelled` or `held`.
-- Dates in **Open sessions**, **Skipped weeks** and **Session status** must be regular session dates, every other Wednesday from the first session. Any other date is ignored, with no warning.
+- Dates in **Open sessions**, **Skipped weeks** and **Session status** must be regular session dates, every other Wednesday from the first session. Any other date has no effect, and Mattermost reports it as a problem, so a mistyped cancellation is caught before the reminder goes out.
 - To show two spellings of a name as one person, add a row to **Aliases**: the variant under **alias**, and the name to show under **display name**.
 
 If every run fails, check the **Settings** tab first. A missing or broken Settings value stops the whole run, announcements included, and the run's log names the key or column. An **Aliases** tab without its `alias` and `display name` headers does not stop a run: Mattermost reports it, and names are shown as typed until the headers are fixed.

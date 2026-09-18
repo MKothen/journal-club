@@ -1,5 +1,7 @@
 from datetime import datetime
 
+import pytest
+
 from sync.assemble import build_pages
 from sync.config import AMSTERDAM
 from sync.sheet import read_all
@@ -215,3 +217,28 @@ def test_a_takeaway_on_one_short_slot_marks_the_whole_session_held():
     assert built.pages["2026-10-14-a"].session.status == "held"
     assert built.pages["2026-10-14-b"].session.status == "held"
     assert [s.status for s in built.sessions if s.day.isoformat() == "2026-10-14"] == ["held"]
+
+
+# -- Task 9 minor b: a date off the session grid is reported, not ignored -----------
+
+OFF_GRID = {
+    "Skipped weeks": [["date"], ["2026-10-13"]],
+    "Session status": [["date", "status"], ["2026-10-13", "cancelled"]],
+    "Open sessions": [["date", "title", "guest", "affiliation", "doi", "length_minutes"],
+                      ["2026-10-13", "Guest talk", "A. Author", "", "", ""]],
+}
+
+
+@pytest.mark.parametrize("tab", list(OFF_GRID))
+def test_a_date_that_is_not_a_session_date_is_reported_once(tab):
+    # 13 October is the Tuesday before a session: a mistyped cancellation
+    # would otherwise do nothing, silently, and the reminder would still go out.
+    built = build_pages(read_all(reader(**{tab: OFF_GRID[tab]})), {}, NOW)
+    assert len(built.problems) == 1
+    assert tab in built.problems[0] and "2026-10-13" in built.problems[0]
+
+
+@pytest.mark.parametrize("day", ["2026-09-23", "2027-06-02"], ids=["before the first", "beyond the horizon"])
+def test_a_date_outside_the_schedule_is_not_reported(day):
+    parsed = read_all(reader(**{"Skipped weeks": [["date"], [day]]}))
+    assert build_pages(parsed, {}, NOW).problems == []

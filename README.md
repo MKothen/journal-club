@@ -135,7 +135,7 @@ Only `Settings` must be filled in, and only a missing or broken `Settings` tab s
 
 **The other tabs**
 
-- Dates in `Open sessions`, `Skipped weeks` and `Session status` must fall on a regular session date: every other Wednesday from `first_session`. The sync ignores any other date without a warning.
+- Dates in `Open sessions`, `Skipped weeks` and `Session status` must fall on a regular session date: every other Wednesday from `first_session`. Any other date has no effect. One between `first_session` and the end of the schedule is reported in Mattermost as a problem.
 - `Open sessions`: an open session takes the place of the regular session on its date, and cannot be claimed. `length_minutes` is a whole number; a blank means 60. The `doi` is optional; with one, the page shows the paper's title and authors.
 - `Session status`: `status` is `cancelled` or `held`. Mark a session `held` only when it happened but nobody added a takeaway, since a takeaway already marks it held. A claimed session that is cancelled keeps its page, marked cancelled, and nobody is notified.
 - To call off a claimed session, mark it cancelled. Never add a claimed date to `Skipped weeks` or `Open sessions`: its page would disappear.
