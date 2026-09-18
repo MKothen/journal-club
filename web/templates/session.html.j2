@@ -8,11 +8,14 @@
 {% set page = view.page %}
 {% set session = page.session %}
 {% set paper = view.paper %}
+{# A guest session is headed by its talk, so its paper's title goes here. #}
+{% set cited = paper.title if paper and paper.title and paper.title != view.heading else None %}
 <article class="session">
   <header class="session-head">
     <h1>{{ view.heading }}</h1>
-{% if paper and (paper.authors or paper.venue or paper.url) %}
+{% if paper and (cited or paper.authors or paper.venue or paper.url) %}
     <p class="citation">
+      {%- if cited %}<span class="cited">{{ cited }}{% if cited[-1:] not in ".?!" %}.{% endif %}</span> {% endif %}
       {%- if paper.authors %}{{ paper.authors|authors }}. {% endif %}
       {%- if paper.venue %}<cite>{{ paper.venue }}</cite>{% if paper.year %}, {{ paper.year }}{% endif %}. {% elif paper.year %}{{ paper.year }}. {% endif %}
       {%- if paper.url %}<a href="{{ paper.url }}">{{ paper.url if paper.doi else paper.url|link_label }}</a>{% endif -%}

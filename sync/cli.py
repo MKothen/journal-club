@@ -163,7 +163,7 @@ def cmd_sync(root: Path = ROOT, fx: Effects | None = None) -> int:
     # Written first, so no failure later in the run can leave a page id that
     # announce is about to link to unrecorded.
     write_data(root, built, data, fx.now)
-    _look_up_papers(root, built, fx)
+    _look_up_papers(root, built, data, fx)
     failures = _copy_explainers(root, built, fx)
 
     log_path = root / LOG
@@ -211,10 +211,14 @@ def cmd_announce(root: Path = ROOT, fx: Effects | None = None) -> int:
 
 # -- sync's steps ------------------------------------------------------------------
 
-def _look_up_papers(root: Path, built: Built, fx: Effects) -> None:
+def _look_up_papers(root: Path, built: Built, data: SheetData, fx: Effects) -> None:
+    """Every claimed slot's DOI, and every open session's, so a guest page
+    shows its paper's title and authors too."""
     path = root / "data" / "papers" / "cache.json"
     cache = read_json(path, {})
-    for doi in sorted({slot.doi for slot in built.slots if slot.doi}):
+    dois = {slot.doi for slot in built.slots if slot.doi}
+    dois |= {spec["doi"] for spec in data.open_sessions.values() if spec.get("doi")}
+    for doi in sorted(dois):
         try:
             paper_metadata(doi, cache, fetch=fx.get_doi)
         except Exception as error:

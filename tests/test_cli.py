@@ -137,6 +137,32 @@ def test_a_run_with_nothing_to_post_never_touches_git(tmp_path):
     assert not (tmp_path / "data" / "announcements.json").exists()
 
 
+GUEST_SESSION = {"Open sessions": [
+    ["date", "title", "guest", "affiliation", "doi", "length_minutes"],
+    ["2026-10-28", "Guest talk", "A. Author", "Elsewhere", "https://doi.org/10.1000/Guest", "90"],
+]}
+
+
+def test_sync_caches_the_paper_of_an_open_session_too(tmp_path):
+    outside = Outside(dois={"10.1000/guest": CSL}, **GUEST_SESSION)
+    assert cmd_sync(tmp_path, outside.effects()) == 0
+    assert read(tmp_path, "papers/cache.json")["10.1000/guest"]["title"] == "A paper"
+
+
+def test_a_failed_open_session_lookup_is_retried_next_run_like_any_other(tmp_path):
+    outside = Outside(claim("2026-09-21 09:00:00", "2026-11-25", "Cy", doi="10.1000/good"),
+                      dois={"10.1000/guest": ConnectionError("doi.org timed out"),
+                            "10.1000/good": CSL},
+                      **GUEST_SESSION)
+    assert cmd_sync(tmp_path, outside.effects()) == 0
+    assert list(read(tmp_path, "papers/cache.json")) == ["10.1000/good"]
+
+    outside.dois["10.1000/guest"] = CSL
+    assert cmd_sync(tmp_path, outside.effects()) == 0
+    assert sorted(read(tmp_path, "papers/cache.json")) == ["10.1000/good", "10.1000/guest"]
+    assert outside.fetched.count("10.1000/good") == 1
+
+
 # -- R9: one page's failure never stops the others ------------------------------
 
 def test_a_failed_doi_lookup_does_not_stop_the_others_and_is_retried_next_run(tmp_path):

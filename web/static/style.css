@@ -184,6 +184,7 @@ p { margin: 0 0 1rem; }
   overflow-wrap: anywhere;
 }
 .citation cite { font-style: italic; }
+.citation .cited { color: var(--ink); }
 
 .signature,
 .who,

@@ -1,3 +1,4 @@
+import json
 import re
 from dataclasses import replace
 from datetime import date, datetime
@@ -230,6 +231,34 @@ def test_every_page_gets_a_takeaway_qr_code(tmp_path):
     site = rendered(tmp_path)
     assert (site / "sessions" / PAGE / "takeaway-qr.svg").exists()
     assert (site / "sessions" / FREE / "takeaway-qr.svg").exists()
+
+
+def with_guest_paper(tmp_path, talk_title="Guest talk"):
+    parsed = data()
+    parsed.open_sessions[date(2026, 10, 28)]["doi"] = "10.1000/guest"
+    cache = tmp_path / "data" / "papers" / "cache.json"
+    cache.parent.mkdir(parents=True)
+    cache.write_text(json.dumps({"10.1000/guest": {
+        "doi": "10.1000/guest", "title": "A paper the guest wrote", "authors": "G. Uest, H. Ost",
+        "year": 2025, "venue": "Neuron", "url": "https://doi.org/10.1000/guest"}}), encoding="utf-8")
+    built = build_pages(parsed, {}, NOW)
+    page = built.pages[GUEST]
+    page.session = replace(page.session, title=talk_title)
+    render(tmp_path, built, parsed)
+    return read(tmp_path / "_site", "sessions", GUEST)
+
+
+def test_a_guest_page_shows_its_papers_title_and_authors(tmp_path):
+    html = with_guest_paper(tmp_path)
+    assert "<h1>Guest talk</h1>" in html
+    assert "A paper the guest wrote" in html and "G. Uest, H. Ost" in html
+
+
+def test_a_guest_session_without_a_talk_title_is_headed_by_its_paper(tmp_path):
+    html = with_guest_paper(tmp_path, talk_title=None)
+    assert "<h1>A paper the guest wrote</h1>" in html
+    citation = re.search(r'<p class="citation">(.*?)</p>', html, re.S).group(1)
+    assert "G. Uest" in citation and "A paper the guest wrote" not in citation
 
 
 def test_a_cancelled_session_page_offers_no_takeaway(tmp_path):

@@ -179,9 +179,10 @@ def _view(page: Page, data: SheetData, papers: dict, explainer: bool) -> View:
     if session.kind == "open":
         spec = data.open_sessions.get(session.day, {})
         guest = session.guest
-        heading = session.title or (f"Open session with {guest}" if guest else "Open session")
-        return View(page, "guest", heading, _paper(spec.get("doi"), None, None, papers),
-                    guest, spec.get("affiliation"), explainer)
+        paper = _paper(spec.get("doi"), None, None, papers)
+        heading = (session.title or (paper and paper.title)
+                   or (f"Open session with {guest}" if guest else "Open session"))
+        return View(page, "guest", heading, paper, guest, spec.get("affiliation"), explainer)
     heading = "Cancelled session" if session.status == "cancelled" else "Open paper chat"
     return View(page, "chat", heading, None, None, None, explainer)
 
