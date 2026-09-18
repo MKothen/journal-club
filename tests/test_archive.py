@@ -6,8 +6,8 @@ from sync.assemble import build_pages
 from sync.claims import claim_key
 from sync.config import AMSTERDAM
 from sync.sheet import read_all
-from tests.test_assemble import HEADER, club, row
-from tests.test_sheet import reader
+from tests.test_assemble import HEADER, row
+from tests.test_sheet import data, reader
 
 NOW = datetime(2026, 10, 20, 12, 0, tzinfo=AMSTERDAM)
 
@@ -68,7 +68,7 @@ def test_an_unapproved_synthesis_never_enters_the_archive(tmp_path):
 
 
 def test_publishable_contributions_enter_the_archive_only_after_seven_days(tmp_path):
-    parsed = club()
+    parsed = data()
     late = datetime(2026, 10, 25, 12, 0, tzinfo=AMSTERDAM)
     write_data(tmp_path, build_pages(parsed, {}, late), parsed, late)
     archived = read(tmp_path, "submissions.json")
@@ -83,7 +83,7 @@ def test_publishable_contributions_enter_the_archive_only_after_seven_days(tmp_p
 # -- the other files ----------------------------------------------------------
 
 def test_the_schedule_and_sync_state_are_written(tmp_path):
-    parsed = club()
+    parsed = data()
     write_data(tmp_path, build_pages(parsed, {}, NOW), parsed, NOW)
     schedule = read(tmp_path, "schedule.json")
     assert schedule[0] == {"day": "2026-09-30", "kind": "regular", "status": "unrecorded",

@@ -17,13 +17,13 @@ class FakeReader:
 RESPONSES = [
     ["Timestamp", "Action", "Session", "Name", "Format", "DOI", "Takeaway", "Part",
      "Text", "Link", "Why", "hide", "status", "checked by"],
-    ["2026-09-20 09:00:00", "claim", "2026-10-07", "Ann", "help", "10.1000/xyz",
+    ["2026-09-20 09:00:00", "claim", "2026-10-14", "Ann", "help", "10.1000/xyz",
      "", "", "", "", "", "", "", ""],
-    ["2026-10-07 12:10:00", "takeaway", "2026-10-07", "Bo", "", "",
+    ["2026-10-14 12:10:00", "takeaway", "2026-10-14", "Bo", "", "",
      "The ablation does not separate the mechanisms", "", "", "", "", "", "", ""],
-    ["2026-10-08 09:00:00", "page", "2026-10-07", "Ann", "", "", "", "synthesis",
+    ["2026-10-15 09:00:00", "page", "2026-10-14", "Ann", "", "", "", "synthesis",
      "We were not convinced", "", "", "", "approved", ""],
-    ["2026-10-08 10:00:00", "takeaway", "2026-10-07", "Spam", "", "", "buy things",
+    ["2026-10-15 10:00:00", "takeaway", "2026-10-14", "Spam", "", "", "buy things",
      "", "", "", "", "yes", "", ""],
 ]
 
@@ -47,9 +47,9 @@ def data():
         "Responses": RESPONSES,
         "Settings": SETTINGS_TAB,
         "Open sessions": [["date", "title", "guest", "affiliation", "doi", "length_minutes"],
-                          ["2026-10-21", "Guest talk", "A. Author", "Elsewhere", "", "90"]],
+                          ["2026-10-28", "Guest talk", "A. Author", "Elsewhere", "", "90"]],
         "Skipped weeks": [["date"], ["2026-12-23"]],
-        "Session status": [["date", "status"], ["2026-11-04", "cancelled"]],
+        "Session status": [["date", "status"], ["2026-11-11", "cancelled"]],
         "Aliases": [["alias", "display name"], ["bo", "Bo de Vries"]],
     }))
 
@@ -105,9 +105,9 @@ def test_approval_status_is_read_per_row():
 
 def test_open_sessions_skips_and_status_are_read():
     parsed = data()
-    assert parsed.open_sessions[date(2026, 10, 21)]["guest"] == "A. Author"
+    assert parsed.open_sessions[date(2026, 10, 28)]["guest"] == "A. Author"
     assert date(2026, 12, 23) in parsed.skipped
-    assert parsed.status[date(2026, 11, 4)] == "cancelled"
+    assert parsed.status[date(2026, 11, 11)] == "cancelled"
 
 
 def test_a_clean_sheet_reports_no_problems():
@@ -413,7 +413,7 @@ def test_adding_an_alias_after_a_claim_leaves_its_claim_name_unchanged():
 # m2: a valid length_minutes is used as given, not just defaulted to 60.
 
 def test_a_valid_length_minutes_of_90_is_used_as_is():
-    assert data().open_sessions[date(2026, 10, 21)]["length_minutes"] == 90
+    assert data().open_sessions[date(2026, 10, 28)]["length_minutes"] == 90
 
 
 # m3: a tab missing a whole required column raises a clear ValueError.
