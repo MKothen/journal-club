@@ -171,6 +171,8 @@ In the **Responses** tab, put one of these in the **hide** column: `yes`, `y`, `
 - Do not unhide a claim once someone else has claimed its session. The older claim takes the session back, and the newer claimant's page disappears with no notice to them.
 - Hiding cannot remove what is already in the repository's history. That is any contribution older than seven days, the name and time of every claim, and every explainer file that was copied.
 
+Never edit a claim row's **Name**, **Timestamp** or **Session**. A new name or time makes it a new claim with a new page address. A new session moves its page to another date. Fix a spelling with an **Aliases** row. To move a claim, hide it and submit a new one.
+
 ### Fix a sheet problem
 
 Mattermost posts "The sheet has a new problem", saying what is wrong, usually with the tab and row. Each problem is posted once. The row is skipped until you fix it or hide it.
