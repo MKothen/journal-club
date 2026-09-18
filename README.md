@@ -20,7 +20,11 @@ Day-to-day running, including what to do when something breaks, is in [RUNBOOK.m
 
 ## Setting it up
 
-Do these in order. Exact spelling matters throughout. The sync finds everything in the sheet by name: tabs by their names, columns by their headers, and answers by their text. A misspelt title or option does not raise an error. The rows it affects are skipped, and Mattermost gets a problem report at best.
+Do these in order. Exact spelling matters throughout. The sync finds everything in the sheet by name: tabs by their names, columns by their headers, and answers by their text. A misspelling never raises an error. What it does instead depends on where it is:
+
+- **A misspelt option, or a misspelt `Timestamp`, `Action`, `Session`, `Name`, `Format`, `Takeaway` or `Part` title.** The sync skips every row it affects, and reports each one in Mattermost.
+- **A misspelt `DOI`, `Text`, `Link` or `Why` title.** The row is kept, that answer is silently dropped, and nothing is reported. The exception is the `DOI` in "I'd come to this", the section's only answer: without it the row is skipped and reported.
+- **A misspelt `hide`, `status` or `checked by` header.** That column is silently ignored. Without `hide`, nothing can be hidden. Without `status`, nothing that needs approval is ever published. Without `checked by`, no author reply is.
 
 ### 1. The Google Form
 
@@ -33,7 +37,7 @@ The site's buttons open the form with some answers already filled in. A prefille
 - Do not collect email addresses.
 - Do not require sign-in, and add no file-upload question. A file-upload question makes Google require sign-in for the whole form, which slows the takeaway QR code for everyone.
 - In the form's description, say that everything submitted is published on the club's public site under the name given. Say too that hiding something later removes it from the site, but not from the repository's history once it is there. Most contributions enter that history after seven days. The name on a claim, and an approved explainer file, enter it at the next run.
-- A suitable confirmation message: "Thank you. It appears on the site within about three hours. A claim is confirmed once it appears on the site and in Mattermost."
+- A suitable confirmation message: "Thank you. Most contributions appear on the site within about three hours. A discussion synthesis, what it means for our work, a slides link, an explainer link or an author reply appears once an organiser has approved it. A claim is confirmed once it appears on the site and in Mattermost."
 
 **Section 1, seen by everyone**
 
@@ -111,7 +115,7 @@ Several titles, such as `Name`, `DOI`, `Text` and `Link`, repeat across sections
 | `Session status` | `date`, `status` | Max or the backup host |
 | `Aliases` | `alias`, `display name` | Anyone |
 
-Only `Settings` must be filled in. A missing or broken `Settings` tab stops every run, announcements included. A missing `Responses` tab is reported in Mattermost. Any other tab may stay empty, but a misnamed one also reads as empty, with no warning.
+Only `Settings` must be filled in. Two mistakes stop every run, announcements included. One is a missing or broken `Settings` tab. The other is an `Aliases` tab whose `alias` or `display name` header is misspelt, and anyone may edit that tab. A missing `Responses` tab is reported in Mattermost. Any other tab may stay empty, but a misnamed one also reads as empty, with no warning.
 
 **The Settings tab**, one key per row. Every key is required except `entry_paper`.
 
@@ -197,11 +201,18 @@ Only Max, as the owner, can change these secrets. The runbook's manual mode cove
 
 ### 8. First run and checks
 
+Run these checks on one clearly marked test session: the last one listed under "Upcoming" on the front page, the furthest ahead. Give every test submission the name `Test`, and start its text with `TEST`.
+
+Hide every test row on the day you make it, approved ones included. Anything left unhidden for seven days enters the public repository's history, and stays there for good.
+
 1. Open the **Actions** tab, choose **sync**, and press **Run workflow**.
 2. Open the site. The front page should list the upcoming sessions, and the menu should include **Guide**.
-3. Add a test takeaway through a session page, run the workflow, and check that it appears. Then hide its row. A row hidden within seven days never enters the repository's history.
-4. Submit a test discussion synthesis. Check that it does not appear until its row's `status` says `approved`, and that it does appear after.
-5. Share `web/explainer-template.html` on Google Drive with "Anyone with the link", submit it as an explainer link, approve it, and check that it appears on the page.
+3. On the test session's page, add a test takeaway with its button. Run the workflow, and check that the takeaway appears.
+4. On the same page, submit a test discussion synthesis with **Add to this page**. Check that it does not appear until its row's `status` says `approved`, and that it does appear after.
+5. Share `web/explainer-template.html` on Google Drive with "Anyone with the link". Submit it on the test page as an explainer link, approve it, run the workflow, and check that it appears.
+6. Hide all three test rows. Run the workflow once more, and check that the test page is plain again.
+
+The explainer file enters the repository's history at the run that copies it, and hiding its row does not remove it from there. That is harmless for the template, which is public anyway.
 
 The design's section 8 lists the remaining launch checks.
 
@@ -215,6 +226,8 @@ python -m pytest
 ```
 
 The tests run offline. They never touch the sheet, git or Mattermost.
+
+If a pytest plugin installed outside this project breaks test collection, switch it off with `-p no:<plugin>`. Max's machine needs `-p no:nengo`, for example.
 
 The three commands are the workflow's steps:
 

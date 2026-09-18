@@ -52,6 +52,8 @@ What tends to work:
 
 Ten minutes on a single result. Two short slots fit in one session, so you share the hour with someone else.
 
+What tends to work in ten minutes:
+
 - Pick the figure that carries the paper's main claim, or the one that surprised you most.
 - Say what the paper claims it shows.
 - Say whether you believe it, and why.
@@ -63,7 +65,7 @@ When you claim, choose "Short slot on one figure". If one short slot is already 
 
 After the session you can write up what the discussion settled, and what it did not. On your page it appears as "Discussion synthesis, prepared by" your name.
 
-It is your account of the discussion, signed by you. It is not the room's verdict. So disagreement and unresolved questions belong in it.
+It is your account of the discussion, signed by you. It is not a group position. So disagreement and unresolved questions belong in it.
 
 One norm, which nobody checks:
 
@@ -141,6 +143,6 @@ A four-line email you can adapt:
 >
 > If anything on it misrepresents your work, I would be glad to hear it and correct it.
 >
-> If you would like to reply, the page has an "Add to this page" button. A reply appears under your name once we have checked with you that it is yours.
+> If you would like to reply, press "Add to this page" on the page and choose "Author reply". It appears under your name once we have checked with you that it is yours.
 
-An author's reply shows on your page under their name. An organiser first confirms that it really came from them, and that they are happy for it to be published.
+An author's reply shows on your page under their name. An organiser first confirms that it really came from them, and that they are happy for it to be published. That check happens only for "Author reply", which is why the email names it.
