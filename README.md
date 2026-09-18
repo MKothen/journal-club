@@ -175,13 +175,13 @@ Without this secret, the workflow adds each message to the run's summary page, t
 
 ### 6. The monitor
 
-The monitor notices when runs stop. A workflow cannot report a run that never started.
+The monitor notices when runs stop, and when a run fails. A workflow cannot report a run that never started, and it cannot report its own failure to Mattermost if the failure is Mattermost's.
 
 1. Create a check at a ping-monitoring service. Healthchecks.io is the candidate the design names.
 2. Give it a period of three hours, and a grace period long enough for GitHub's delays. Those delays can reach an hour or more.
 3. Send its alerts to the Mattermost channel if the service can. Otherwise send them by email to Max and the co-organiser.
 
-The check's ping address becomes the secret `MONITOR_PING_URL`. The workflow pings it at the end of every run, including failed runs, so the monitor alerts only when runs stop. A failed run is reported in Mattermost instead. A missing or failing ping never fails the run.
+The check's ping address becomes the secret `MONITOR_PING_URL`. At the end of every run the workflow pings it: the address itself after a successful run, and the address with `/fail` added after a failed one, which Healthchecks.io takes as a failure signal. Another service must accept the same. So the monitor alerts when runs stop and when a run fails, including a failure Mattermost cannot be told about. A missing or failing ping never fails the run.
 
 ### 7. The GitHub repository
 
@@ -196,7 +196,7 @@ The check's ping address becomes the secret `MONITOR_PING_URL`. The workflow pin
 | `SHEET_ID` | The sheet's id | Sync, Build, Announce |
 | `GOOGLE_SERVICE_ACCOUNT_JSON` | The whole service-account key file | Sync, Build, Announce |
 | `MATTERMOST_WEBHOOK_URL` | The incoming webhook's address | Sync, Announce, Report failure |
-| `MONITOR_PING_URL` | The monitor's ping address | Ping the monitor |
+| `MONITOR_PING_URL` | The monitor's ping address | Ping the monitor, Tell the monitor the run failed |
 
 Only Max, as the owner, can change these secrets. The runbook's manual mode covers the time until he can.
 

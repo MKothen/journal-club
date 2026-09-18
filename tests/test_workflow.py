@@ -32,7 +32,34 @@ def test_it_runs_on_a_schedule_and_on_demand():
 
 def test_announcements_survive_a_failed_build_or_deploy():
     assert step("Announce")["if"] == "always()"
-    assert step("Ping the monitor")["if"] == "always()"
+
+
+def test_the_wednesday_reminder_gets_extra_runs_in_the_morning():
+    # Final review D4: at 07:17 and 08:17 UTC, so the 08:00 reminder has a
+    # run at 08:17 and 09:17 in winter, and 09:17 and 10:17 in summer, on top
+    # of the three-hourly schedule, whose hours these two never coincide with.
+    crons = [entry["cron"] for entry in WORKFLOW[True]["schedule"]]
+    assert crons == ["17 */3 * * *", "17 7,8 * * 3"]
+
+
+def test_the_monitor_hears_of_every_run_that_finishes_and_whether_it_failed():
+    # Final review M2: a dead webhook fails every post, and Report failure
+    # then fails silently on the same webhook, so the monitor must hear of a
+    # failed run itself. Healthchecks treats <ping url>/fail as a failure.
+    healthy, failed = step("Ping the monitor"), step("Tell the monitor the run failed")
+    assert healthy["if"] == "success()" and failed["if"] == "failure()"
+    assert '"$MONITOR_PING_URL"' in healthy["run"]
+    assert '"$MONITOR_PING_URL/fail"' in failed["run"]
+    for ping in (healthy, failed):
+        assert "-m 10" in ping["run"] and "--retry 3" in ping["run"]
+        assert ping["run"].strip().endswith("|| true")
+        assert ping["env"] == {"MONITOR_PING_URL": "${{ secrets.MONITOR_PING_URL }}"}
+    notice = index("Fail if a notice was not posted")
+    assert notice < index("Ping the monitor") and notice < index("Tell the monitor the run failed")
+
+
+def test_commit_the_archive_cannot_hold_the_queue():
+    assert step("Commit the archive")["timeout-minutes"] == 5
 
 
 def test_a_failure_is_reported_to_mattermost():

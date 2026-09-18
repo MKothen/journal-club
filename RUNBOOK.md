@@ -49,6 +49,8 @@ A GitHub workflow called **sync** runs every three hours, and whenever someone s
 - Summer time: 02:17, 05:17, 08:17, 11:17, 14:17, 17:17, 20:17, 23:17.
 - Winter time: 01:17, 04:17, 07:17, 10:17, 13:17, 16:17, 19:17, 22:17.
 
+On Wednesdays it also runs at 09:17 and 10:17 in summer time, and at 08:17 and 09:17 in winter time, so the morning reminder has more than one chance before the session.
+
 GitHub often starts scheduled runs late, sometimes by an hour or more, and occasionally drops one.
 
 ### What each run does, in order
@@ -62,7 +64,7 @@ GitHub often starts scheduled runs late, sometimes by an hour or more, and occas
 7. Builds the site and publishes it.
 8. Posts any announcement that is due. This step runs even when an earlier step failed.
 9. If a notice from step 5 could not be posted, marks the run as failed, so the failure is reported like any other.
-10. Pings the monitor. This also happens on every run, failed or not.
+10. Tells the monitor it ran, and whether it failed. This happens at the end of every run.
 11. If any step failed, posts "Journal club sync failed" to Mattermost, with a link to the run.
 
 ### Announcements
@@ -74,7 +76,7 @@ GitHub often starts scheduled runs late, sometimes by an hour or more, and occas
 | Who presents what | 09:00 on the Monday before | the session is not cancelled |
 | A short reminder | 08:00 on the day | the session is not cancelled |
 
-In practice, Friday's and Monday's messages come at about 11:17 in summer and 10:17 in winter. The reminder comes at about 08:17 in summer, but not before 10:17 in winter. A late run can miss the reminder altogether, because nothing is posted once a session has started.
+In practice, Friday's and Monday's messages come at about 11:17 in summer and 10:17 in winter. The reminder comes at about 08:17 in summer and in winter, and a run that is late or dropped is followed by others until 10:17. Only when every one of them is late or dropped does the reminder go unposted, because nothing is posted once a session has started.
 
 Three rules hold for every message:
 
@@ -91,7 +93,7 @@ Three rules hold for every message:
 
 ### The monitor
 
-The monitor is pinged at the end of every run, even a failed one. So it alerts only when runs stop happening. A run that fails is reported in Mattermost instead.
+Every run tells the monitor it finished: a run that succeeded pings the monitor's address, and a run that failed pings that address with `/fail` added. So the monitor alerts when runs stop happening, and when a run fails. A failed run is also reported in Mattermost, unless Mattermost itself is what failed, as with a dead webhook. The monitor still hears of it then.
 
 ---
 
@@ -103,7 +105,7 @@ You run a session when Max is away. The room still belongs to the presenter. You
 
 - Look for Monday's announcement in the Mattermost channel. It says who presents what, or that it is an open paper chat. The front page of the site says the same under "Up next".
 - A cancelled session or a skipped week has no Monday message. Otherwise, if Monday's message has not appeared by Monday evening, post it yourself from the templates in part 4. The automation is probably down.
-- If the monitor sends an alert, runs have stopped. Check the channel the same way, and post what is missing.
+- If the monitor sends an alert, runs have stopped or failed. Check the channel the same way, and post what is missing.
 - Whenever you post a message by hand, tell the co-organiser exactly what you posted and for which session. They record it in the repository, so the automation does not post it a second time when it restarts. That recording is theirs to do, not yours.
 
 **On the day**
@@ -284,7 +286,7 @@ Mattermost posts "Journal club sync failed", with a link to the run. Open the li
 | Announce | Mattermost could not be reached | Check for a `sending` entry, above |
 | Fail if a notice was not posted | Mattermost refused a notice during Sync. The site was still built. | Check for a `sending` entry, above |
 
-The monitor ping never fails a run.
+The monitor pings never fail a run. If the monitor reports a failed run but Mattermost shows no "Journal club sync failed", Mattermost is probably the problem: a dead or changed webhook fails every post, the failure report included. Only Max can change the webhook, so switch to manual mode.
 
 If a run keeps failing and its log mentions credentials, permission, or an error 401 or 403, only Max can fix it. Switch to manual mode.
 

@@ -2,6 +2,10 @@ name: sync
 on:
   schedule:
     - cron: "17 */3 * * *"
+    # Wednesdays at 07:17 and 08:17 UTC: the 08:00 reminder's first chances,
+    # 08:17 and 09:17 in winter, 09:17 and 10:17 in summer. Neither hour is
+    # one of the three-hourly runs, so no run is doubled.
+    - cron: "17 7,8 * * 3"
   workflow_dispatch:
 
 concurrency:
@@ -40,6 +44,7 @@ jobs:
           MATTERMOST_WEBHOOK_URL: ${{ secrets.MATTERMOST_WEBHOOK_URL }}
         run: python -m sync.cli sync
       - name: Commit the archive
+        timeout-minutes: 5
         run: |
           mkdir -p explainers
           git add data explainers
@@ -68,11 +73,18 @@ jobs:
       - name: Fail if a notice was not posted
         if: always() && steps.sync.outputs.notices_failed != '' && steps.sync.outputs.notices_failed != '0'
         run: exit 1
+      # The monitor hears of every run that finishes, and of whether it failed:
+      # when the webhook itself is dead, Report failure cannot reach anyone.
       - name: Ping the monitor
-        if: always()
+        if: success()
         env:
           MONITOR_PING_URL: ${{ secrets.MONITOR_PING_URL }}
-        run: curl -fsS --retry 3 "$MONITOR_PING_URL" || true
+        run: curl -fsS -m 10 --retry 3 "$MONITOR_PING_URL" || true
+      - name: Tell the monitor the run failed
+        if: failure()
+        env:
+          MONITOR_PING_URL: ${{ secrets.MONITOR_PING_URL }}
+        run: curl -fsS -m 10 --retry 3 "$MONITOR_PING_URL/fail" || true
       - name: Report failure
         if: failure()
         env:
