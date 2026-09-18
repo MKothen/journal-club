@@ -200,3 +200,18 @@ def test_a_released_claims_id_is_never_reused_by_the_unclaimed_sessions_page():
     page = second.pages["2026-10-14-2"]
     assert page.slot is None and page.takeaways == []
     assert "Takeaway from Ann names page 2026-10-14, which does not exist" in second.problems
+
+
+# -- final review I5: held is a session's status, not a page's -----------------------
+
+def test_a_takeaway_on_one_short_slot_marks_the_whole_session_held():
+    parsed = read_all(reader(Responses=[
+        HEADER,
+        row("2026-09-20 09:00:00", "claim", "2026-10-14", "Ann", fmt="short"),
+        row("2026-09-21 09:00:00", "claim", "2026-10-14", "Bo", fmt="short"),
+        row("2026-10-14 12:10:00", "takeaway", "2026-10-14-a", "Cy", takeaway="Only on a"),
+    ]))
+    built = build_pages(parsed, {}, NOW)
+    assert built.pages["2026-10-14-a"].session.status == "held"
+    assert built.pages["2026-10-14-b"].session.status == "held"
+    assert [s.status for s in built.sessions if s.day.isoformat() == "2026-10-14"] == ["held"]

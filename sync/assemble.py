@@ -83,11 +83,17 @@ def build_pages(data: SheetData, assigned: dict[str, str], now: datetime,
         if row.page_id not in built.pages
     ]
 
+    # Held is a session's status (spec 4.4), so a takeaway on one short slot
+    # marks every page of that session held, and the schedule says so too.
+    held_days = {
+        page.session.day for page in built.pages.values()
+        if page.takeaways and page.session.status not in ("cancelled", "held")
+        and now >= starts[page.session.day]
+    }
     for page in built.pages.values():
-        if page.session.status in ("cancelled", "held"):
-            continue
-        if page.takeaways and now >= session_start(page.session.day, data.settings):
+        if page.session.day in held_days:
             page.session = replace(page.session, status="held")
+    built.sessions = [replace(s, status="held") if s.day in held_days else s for s in sessions]
     return built
 
 
