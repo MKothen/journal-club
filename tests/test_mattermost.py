@@ -1,3 +1,5 @@
+import re
+
 from sync.mattermost import neutral, post
 
 
@@ -46,6 +48,23 @@ def test_neutral_backslash_escapes_markdown_and_the_backslash_first():
 
 def test_neutral_leaves_plain_text_alone():
     assert neutral("Bo de Vries, 10.1038/nn.2479") == "Bo de Vries, 10.1038/nn.2479"
+
+
+# -- final re-review: an HTML entity must not smuggle a mention past neutral ------------
+# Mattermost decodes entities such as &commat; into "@" before it looks for mentions,
+# so "&commat;channel" typed into the form would notify the whole channel.
+
+ENTITY = re.compile(r"&[A-Za-z0-9#]+;")
+
+
+def test_neutral_leaves_no_html_entity_that_could_decode_into_a_mention():
+    for typed in ("&commat;channel", "&commat;here", "&commat;all",
+                  "&#64;channel", "&#x40;here", "&amp;commat;all"):
+        assert not ENTITY.search(neutral(typed)), typed
+
+
+def test_neutral_escapes_an_ampersand_and_breaks_it_from_what_follows():
+    assert neutral("&commat;channel") == BACKSLASH + "&" + ZWSP + "commat;channel"
 
 
 # -- final review D5: with no webhook, each message goes to the run summary ------------

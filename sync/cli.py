@@ -312,7 +312,8 @@ def _next_open(built: Built, settings: Settings, now: datetime) -> str:
 
 
 def _explainer_failure(page: Page, link: str, error: ExplainerError) -> Message:
-    text = f"The explainer for page {page.page_id} was not published: {error}"
+    # The error can quote part of the submitted link, which came from the form.
+    text = f"The explainer for page {page.page_id} was not published: {neutral(str(error))}"
     return _single(f"explainer-failed:{page.page_id}:{_sha1(link)}",
                    "explainer-failed", page.session.day, text)
 

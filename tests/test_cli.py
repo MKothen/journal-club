@@ -246,6 +246,17 @@ def test_a_failed_explainer_is_retried_every_run_but_reported_once(tmp_path):
     assert read(tmp_path, "explainers.json") == {"2026-10-14": BAD}
 
 
+def test_an_explainer_failure_quoting_a_hostile_link_mentions_nobody(tmp_path):
+    # An ExplainerError can echo part of the link, and the link came from the form.
+    hostile = ExplainerError("could not fetch https://evil.example/x/@channel/[win](https://evil.example)")
+    outside = Outside(part("2026-10-15 09:00:00", "2026-10-14", "Ann", "explainer", link=BAD),
+                      explainers={BAD: hostile})
+    cmd_sync(tmp_path, outside.effects())
+    assert len(outside.posts) == 1
+    assert "@channel" not in outside.posts[0]
+    assert "[win](" not in outside.posts[0]
+
+
 def test_a_failed_newer_link_keeps_the_older_file_and_is_retried(tmp_path):
     outside = Outside(part("2026-10-15 09:00:00", "2026-10-14", "Ann", "explainer", link=GOOD),
                       explainers={GOOD: HTML, NEWER: ExplainerError("explainer file is too large")})
